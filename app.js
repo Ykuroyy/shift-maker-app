@@ -70,6 +70,8 @@ function init() {
     addGanttChartButton();
     // CSVダウンロードボタンを追加
     addDownloadButton();
+    // 月間統計ボタンを追加
+    addStatsButton();
 }
 
 // スタッフリストの表示
@@ -182,7 +184,14 @@ function createCalendarDay(year, month, day, isOtherMonth) {
     }
     
     // クリックイベント
-    dayEl.addEventListener('click', () => selectDate(dateStr));
+    dayEl.addEventListener('click', (e) => {
+        // ダブルクリックで詳細表示
+        if (e.detail === 2) {
+            showDayDetailGantt(dateStr);
+        } else {
+            selectDate(dateStr);
+        }
+    });
     
     // ドロップイベント
     dayEl.addEventListener('dragover', handleDragOver);
@@ -382,7 +391,7 @@ function showStaffManagement() {
     staffData.forEach((staff) => {
         html += `
             <div class="staff-edit-item" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
-                <div style="display: grid; grid-template-columns: 200px 1fr 150px; gap: 10px; align-items: center;">
+                <div style="display: grid; grid-template-columns: 200px 2fr 150px; gap: 15px; align-items: start;">
                     <div>
                         <input type="text" id="staff-name-${staff.id}" value="${staff.name}" style="width: 100%;">
                     </div>
@@ -928,6 +937,18 @@ function applyRequirementsAndGenerate() {
     }
 }
 
+// 月間統計ボタンを追加
+function addStatsButton() {
+    const shiftSection = document.querySelector('.shift-section');
+    const statsBtn = document.createElement('button');
+    statsBtn.className = 'btn';
+    statsBtn.textContent = '月間統計';
+    statsBtn.style.marginTop = '10px';
+    statsBtn.style.background = '#28a745';
+    statsBtn.addEventListener('click', showMonthlyStats);
+    shiftSection.appendChild(statsBtn);
+}
+
 // CSVダウンロードボタンを追加
 function addDownloadButton() {
     const shiftSection = document.querySelector('.shift-section');
@@ -938,6 +959,75 @@ function addDownloadButton() {
     csvBtn.style.background = '#17a2b8';
     csvBtn.addEventListener('click', showDownloadOptions);
     shiftSection.appendChild(csvBtn);
+}
+
+// 月間統計を表示
+function showMonthlyStats() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthlyRestDays = calculateMonthlyRestDays(year, month);
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'statsModal';
+    modal.style.display = 'block';
+    
+    let html = `
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('statsModal').remove()">&times;</span>
+            <h2>${year}年${month + 1}月 勤務統計</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+                <thead>
+                    <tr style="background: #f8f9fa;">
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">スタッフ名</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">休日数</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">日勤</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">遅番</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: center;">夜勤</th>
+                        <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">スキル</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    // 各スタッフの統計を計算
+    staffData.forEach(staff => {
+        const stats = calculateStaffMonthlyStats(staff.id, year, month);
+        const restDays = monthlyRestDays[staff.id] || 0;
+        const rowStyle = restDays < staff.minRestDays ? 'background: #ffe4e1;' : '';
+        
+        html += `
+            <tr style="${rowStyle}">
+                <td style="border: 1px solid #ddd; padding: 8px;">${staff.name}</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold;">${restDays}日</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${stats.day}回</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${stats.late}回</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${stats.night}回</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">${staff.skills.join(', ') || 'なし'}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+            <p style="margin-top: 15px; font-size: 14px; color: #666;">※ 赤色背景: 最低休日数(${staffData[0].minRestDays}日)未満のスタッフ</p>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn" style="background: #28a745; margin-right: 10px;" onclick="downloadStatsCSV()">📄 統計をCSVダウンロード</button>
+                <button class="btn" style="background: #17a2b8;" onclick="downloadScheduleCSV()">📅 シフト表をCSVダウンロード</button>
+            </div>
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // モーダル外クリックで閉じる
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
 }
 
 // CSVダウンロードオプションを表示
@@ -1066,6 +1156,149 @@ function downloadCSV(content, filename) {
         link.click();
         document.body.removeChild(link);
     }
+}
+
+// 1日の詳細ガントチャートを表示
+function showDayDetailGantt(dateStr) {
+    const selectedDate = new Date(dateStr);
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
+    const day = selectedDate.getDate();
+    
+    // 前日、当日、翌日の情報を取得
+    const prevDate = new Date(year, month, day - 1);
+    const nextDate = new Date(year, month, day + 1);
+    const prevDateStr = formatDate(prevDate);
+    const nextDateStr = formatDate(nextDate);
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'dayDetailModal';
+    modal.style.display = 'block';
+    
+    let html = `
+        <div class="modal-content" style="max-width: 95%; width: 1200px; max-height: 90vh; overflow-y: auto;">
+            <span class="close" onclick="document.getElementById('dayDetailModal').remove()">&times;</span>
+            <h2>🕐 ${month + 1}月${day}日の詳細シフト表 (ダブルクリックで表示)</h2>
+            <div style="overflow-x: auto; margin-top: 20px;">
+                <table style="width: 100%; border-collapse: collapse; min-width: 1000px;">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" style="border: 1px solid #ddd; padding: 8px; background: #f8f9fa; position: sticky; left: 0; min-width: 120px;">スタッフ</th>
+                            <th colspan="24" style="border: 1px solid #ddd; padding: 8px; background: #e9ecef; text-align: center;">${month + 1}月${day - 1}日</th>
+                            <th colspan="24" style="border: 1px solid #ddd; padding: 8px; background: #d4edda; text-align: center;">${month + 1}月${day}日 (今日)</th>
+                            <th colspan="24" style="border: 1px solid #ddd; padding: 8px; background: #e9ecef; text-align: center;">${month + 1}月${day + 1}日</th>
+                        </tr>
+                        <tr>
+    `;
+    
+    // 時間ヘッダー (3日分)
+    for (let d = 0; d < 3; d++) {
+        for (let hour = 0; hour < 24; hour++) {
+            const bgColor = d === 1 ? '#d4edda' : '#e9ecef'; // 今日は緑系
+            html += `<th style="border: 1px solid #ddd; padding: 2px; font-size: 10px; background: ${bgColor}; min-width: 25px;">${hour}</th>`;
+        }
+    }
+    html += '</tr></thead><tbody>';
+    
+    // 各スタッフの行
+    staffData.forEach(staff => {
+        html += `
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px; background: #f8f9fa; position: sticky; left: 0; font-weight: bold;">${staff.name}</td>
+        `;
+        
+        // 3日分の時間帯をチェック
+        const dates = [prevDateStr, dateStr, nextDateStr];
+        dates.forEach((currentDateStr, dayIndex) => {
+            for (let hour = 0; hour < 24; hour++) {
+                let cellContent = '';
+                let cellStyle = 'border: 1px solid #ddd; padding: 1px; text-align: center; font-size: 10px; min-width: 25px;';
+                const isToday = dayIndex === 1;
+                
+                // シフトチェック
+                if (shiftData[currentDateStr]) {
+                    Object.entries(shiftData[currentDateStr]).forEach(([shiftType, staffIds]) => {
+                        if (staffIds.includes(staff.id)) {
+                            const shift = SHIFT_TYPES[shiftType.toUpperCase()];
+                            let isInShift = false;
+                            
+                            // シフトの時間帯をチェック
+                            switch(shiftType) {
+                                case 'day': // 9:00-17:30
+                                    isInShift = hour >= 9 && hour < 18;
+                                    break;
+                                case 'late': // 16:00-24:00
+                                    isInShift = hour >= 16 && hour < 24;
+                                    break;
+                                case 'night': // 23:00-9:00 (翌日)
+                                    isInShift = hour >= 23 || hour < 9;
+                                    break;
+                            }
+                            
+                            if (isInShift) {
+                                cellContent = shift.name.charAt(0); // 日/遅/夜
+                                switch(shiftType) {
+                                    case 'day':
+                                        cellStyle += ' background: #fff3cd; color: #856404;';
+                                        break;
+                                    case 'late':
+                                        cellStyle += ' background: #cce5ff; color: #004085;';
+                                        break;
+                                    case 'night':
+                                        cellStyle += ' background: #d1ecf1; color: #0c5460;';
+                                        break;
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // 今日の背景色
+                if (isToday && !cellContent) {
+                    cellStyle += ' background: #f8fff8;';
+                }
+                
+                html += `<td style="${cellStyle}">${cellContent}</td>`;
+            }
+        });
+        
+        html += '</tr>';
+    });
+    
+    html += `
+                </tbody>
+            </table>
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #fff3cd; border: 1px solid #856404;"></div>
+                    <span>日勤 (9:00-17:30)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #cce5ff; border: 1px solid #004085;"></div>
+                    <span>遅番 (16:00-24:00)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #d1ecf1; border: 1px solid #0c5460;"></div>
+                    <span>夜勤 (23:00-翌9:00)</span>
+                </div>
+            </div>
+            <p style="margin-top: 15px; text-align: center; color: #666; font-size: 14px;">
+                ※ カレンダーの日付をダブルクリックするとこの表示が開きます
+            </p>
+        </div>
+    `;
+    
+    modal.innerHTML = html;
+    document.body.appendChild(modal);
+    
+    // モーダル外クリックで閉じる
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
 }
 
 // 初期化実行
