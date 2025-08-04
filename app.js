@@ -583,12 +583,35 @@ function autoGenerateShifts() {
             }
         });
         
+        // 365日必ず誰かが勤務しているかチェック
+        const totalAssigned = Object.values(shiftData[dateStr]).reduce((sum, staffIds) => sum + staffIds.length, 0);
+        if (totalAssigned === 0) {
+            // 緊急割り当て：最低限日勤に人員を確保
+            const emergencyStaff = staffData.filter(staff => 
+                (!requestedDaysOff[dateStr] || !requestedDaysOff[dateStr].includes(staff.id)) &&
+                staffConstraints[staff.id].consecutiveWork < 7 // 7連勤未満
+            );
+            
+            if (emergencyStaff.length > 0) {
+                // 最低3名を日勤に割り当て
+                const assignCount = Math.min(emergencyStaff.length, SHIFT_REQUIREMENTS.day.min);
+                shiftData[dateStr].day = emergencyStaff.slice(0, assignCount).map(s => s.id);
+                console.warn(`${dateStr}: 緊急割り当て実施 - ${assignCount}名を日勤に配置`);
+            } else {
+                // それでも誰もいない場合は、希望休みを無視して割り当て（病院なので必須）
+                const forceAssign = staffData.slice(0, 3).map(s => s.id);
+                shiftData[dateStr].day = forceAssign;
+                console.error(`${dateStr}: 強制割り当て実施 - 希望休みを無視して配置`);
+            }
+        }
+        
         // 制約情報を更新
         updateStaffConstraints(dateStr, shiftData[dateStr], staffConstraints);
     }
     
     // カレンダーを再描画
     renderCalendar();
+    renderStaffList(); // スタッフリストも更新して休日数を表示
     alert('シフトを自動生成しました');
 }
 
@@ -664,17 +687,37 @@ function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffCon
     if (assigned.length < requirements.min) {
         // 必要に応じて制約を緩めて再割り当て
         const availableForMin = availableForShift.filter(staff => !assigned.includes(staff.id));
-        for (const staff of availableForMin) {
-            if (assigned.length >= requirements.min) break;
-            // 夜勤の場合は最低限の制約のみチェック
-            if (shiftType === 'night') {
+        
+        // 夜勤の場合は特別処理
+        if (shiftType === 'night') {
+            // まず夜勤可能なスタッフを優先
+            const nightCapable = availableForMin.filter(staff => {
                 const constraint = staffConstraints[staff.id];
-                // 夜勤上限のみチェック（他の制約は緩める）
-                if (constraint.nightCount < staff.maxNightShifts) {
-                    assigned.push(staff.id);
-                    assignedToday.add(staff.id);
+                return constraint.nightCount < staff.maxNightShifts;
+            });
+            
+            // 夜勤可能なスタッフから割り当て
+            for (const staff of nightCapable) {
+                if (assigned.length >= requirements.min) break;
+                assigned.push(staff.id);
+                assignedToday.add(staff.id);
+            }
+            
+            // それでも足りない場合は制約を無視
+            if (assigned.length < requirements.min) {
+                for (const staff of availableForMin) {
+                    if (assigned.length >= requirements.min) break;
+                    if (!assigned.includes(staff.id)) {
+                        assigned.push(staff.id);
+                        assignedToday.add(staff.id);
+                        console.warn(`${dateStr}: ${staff.name}を夜勤に強制割り当て`);
+                    }
                 }
-            } else {
+            }
+        } else {
+            // 日勤・遅番の場合
+            for (const staff of availableForMin) {
+                if (assigned.length >= requirements.min) break;
                 assigned.push(staff.id);
                 assignedToday.add(staff.id);
             }
