@@ -13,35 +13,66 @@
         <!-- 使い方説明 -->
         <div class="help-section" style="background: #e3f2fd; padding: 15px; margin-bottom: 20px; border-radius: 8px; display: none;" id="helpSection">
             <h3 style="margin-top: 0;">📋 使い方とルール</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
                 <div>
-                    <h4>シフトの種類</h4>
-                    <ul style="list-style: none; padding: 0;">
-                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #fff3cd; border: 1px solid #856404; vertical-align: middle;"></span> 日勤：9:00-17:30</li>
-                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #cce5ff; border: 1px solid #004085; vertical-align: middle;"></span> 遅番：16:00-24:00</li>
-                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #d1ecf1; border: 1px solid #0c5460; vertical-align: middle;"></span> 夜勤：23:00-翌9:00</li>
-                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #f8d7da; border: 1px solid #721c24; vertical-align: middle;"></span> 希望休</li>
+                    <h4>🎨 シフトの色分け</h4>
+                    <ul style="list-style: none; padding: 0; line-height: 1.8;">
+                        <li><span style="display: inline-block; width: 16px; height: 16px; background: #fff3cd; border: 1px solid #856404; vertical-align: middle; margin-right: 8px;"></span>日勤：9:00-17:30</li>
+                        <li><span style="display: inline-block; width: 16px; height: 16px; background: #cce5ff; border: 1px solid #004085; vertical-align: middle; margin-right: 8px;"></span>遅番：16:00-24:00</li>
+                        <li><span style="display: inline-block; width: 16px; height: 16px; background: #d1ecf1; border: 1px solid #0c5460; vertical-align: middle; margin-right: 8px;"></span>夜勤：23:00-翌9:00</li>
+                        <li><span style="display: inline-block; width: 16px; height: 16px; background: #f8d7da; border: 1px solid #721c24; vertical-align: middle; margin-right: 8px;"></span>希望休み</li>
+                        <li><span style="display: inline-block; width: 16px; height: 16px; background: #d4edda; border: 1px dashed #28a745; vertical-align: middle; margin-right: 8px;"></span>通常の休み</li>
                     </ul>
                 </div>
                 <div>
-                    <h4>基本的な使い方</h4>
-                    <ol style="padding-left: 20px;">
-                        <li>左側のスタッフをカレンダーにドラッグ&ドロップ</li>
-                        <li>シフトの種類を選択（1:日勤, 2:遅番, 3:夜勤）</li>
-                        <li>同じ日に同じスタッフは1つのシフトのみ</li>
-                        <li>自動割り当て機能で一括作成も可能</li>
+                    <h4>📱 基本操作</h4>
+                    <ol style="padding-left: 20px; line-height: 1.8;">
+                        <li><strong>手動割り当て</strong><br>スタッフをドラッグ&ドロップ</li>
+                        <li><strong>シフト選択</strong><br>1:日勤, 2:遅番, 3:夜勤</li>
+                        <li><strong>詳細表示</strong><br>日付をダブルクリック</li>
+                        <li><strong>希望休み登録</strong><br>希望休み登録ボタン使用</li>
+                        <li><strong>自動割り当て</strong><br>人数設定→一括作成</li>
                     </ol>
                 </div>
+                <div>
+                    <h4>🔧 便利機能</h4>
+                    <ul style="padding-left: 20px; line-height: 1.8;">
+                        <li><strong>月間統計</strong><br>休日数・勤務回数を表示</li>
+                        <li><strong>ガントチャート</strong><br>月全体を一覧表示</li>
+                        <li><strong>CSVダウンロード</strong><br>エクセルで編集可能</li>
+                        <li><strong>スタッフ管理</strong><br>スキル・休日数設定</li>
+                        <li><strong>人数不足警告</strong><br>⚠️マークで表示</li>
+                    </ul>
+                </div>
             </div>
-            <div style="margin-top: 15px;">
-                <h4>制約ルール（自動割り当て時）</h4>
-                <ul style="padding-left: 20px;">
-                    <li>連続勤務は最大5日まで</li>
-                    <li>夜勤の翌日は夜勤を避ける</li>
-                    <li>スタッフごとの夜勤上限回数を考慮</li>
-                    <li>必須スキル（リーダー等）を持つスタッフを優先配置</li>
-                    <li>新人スタッフの夜勤は少なめに設定</li>
-                </ul>
+            <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4>🚥 制約ルール（自動割り当て時）</h4>
+                    <ul style="padding-left: 20px; line-height: 1.6;">
+                        <li>365日必ず誰かが勤務（病院のため）</li>
+                        <li>同じ日に同じスタッフは重複不可</li>
+                        <li>連続勤務は最大5日まで</li>
+                        <li>夜勤の翌日は夜勤を避ける</li>
+                        <li>各シフトの最低人数を確保</li>
+                        <li>目標休み人数を考慮</li>
+                        <li>スタッフ別の夜勤上限・最低休日数を遵守</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>📊 表示情報</h4>
+                    <ul style="padding-left: 20px; line-height: 1.6;">
+                        <li><strong>カレンダー</strong>：各日の休み人数「休:2」</li>
+                        <li><strong>人数不足日</strong>：⚠️不足マーク</li>
+                        <li><strong>スタッフリスト</strong>：今月の休日数</li>
+                        <li><strong>シフト詳細</strong>：選択日の勤務・休み情報</li>
+                        <li><strong>時間ガント</strong>：1時間単位の詳細表示</li>
+                        <li><strong>統計表</strong>：スタッフ別の勤務バランス</li>
+                    </ul>
+                </div>
+            </div>
+            <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px;">
+                <h4 style="margin-top: 0;">💡 おすすめの使用手順</h4>
+                <p style="margin: 0; line-height: 1.6;"><strong>1.</strong> スタッフ管理でスキル・休日数設定 → <strong>2.</strong> 希望休み登録 → <strong>3.</strong> 自動割り当て（人数調整） → <strong>4.</strong> 手動微調整 → <strong>5.</strong> 月間統計で確認 → <strong>6.</strong> CSVダウンロード</p>
             </div>
         </div>
         

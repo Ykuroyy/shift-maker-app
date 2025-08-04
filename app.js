@@ -471,12 +471,24 @@ function setupEventListeners() {
     
     // 月間統計ボタン
     document.getElementById('statsBtn').addEventListener('click', () => {
-        showMonthlyStats();
+        console.log('月間統計ボタンがクリックされました');
+        try {
+            showMonthlyStats();
+        } catch (error) {
+            console.error('月間統計表示エラー:', error);
+            alert('月間統計の表示でエラーが発生しました: ' + error.message);
+        }
     });
     
     // CSVダウンロードボタン
     document.getElementById('csvBtn').addEventListener('click', () => {
-        showDownloadOptions();
+        console.log('CSVダウンロードボタンがクリックされました');
+        try {
+            showDownloadOptions();
+        } catch (error) {
+            console.error('CSVダウンロード表示エラー:', error);
+            alert('CSVダウンロードの表示でエラーが発生しました: ' + error.message);
+        }
     });
     
     // ガントチャートボタン
@@ -693,19 +705,70 @@ function autoGenerateShifts() {
         // シフトタイプごとに割り当て
         shiftData[dateStr] = {};
         
-        // 各シフトタイプに対してスタッフを割り当て
-        ['day', 'late', 'night'].forEach(shiftType => {
-            const assigned = assignShiftWithConstraints(
-                shiftType,
-                dateStr,
-                availableStaff,
-                staffConstraints,
-                dayOfWeek
-            );
-            if (assigned.length > 0) {
-                shiftData[dateStr][shiftType] = assigned;
+        // 目標休み人数を考慮したシフト割り当て
+        const targetWorkingStaff = staffData.length - TARGET_REST_COUNT;
+        const availableForWork = availableStaff.filter(staff => 
+            !requestedDaysOff[dateStr] || !requestedDaysOff[dateStr].includes(staff.id)
+        );
+        
+        // 勤務可能なスタッフが目標より少ない場合は全員働く
+        if (availableForWork.length <= targetWorkingStaff) {
+            ['day', 'late', 'night'].forEach(shiftType => {
+                const assigned = assignShiftWithConstraints(
+                    shiftType,
+                    dateStr,
+                    availableStaff,
+                    staffConstraints,
+                    dayOfWeek
+                );
+                if (assigned.length > 0) {
+                    shiftData[dateStr][shiftType] = assigned;
+                }
+            });
+        } else {
+            // 目標休み人数を達成するため、各シフトの最大人数を調整
+            const adjustedRequirements = {
+                day: { ...SHIFT_REQUIREMENTS.day },
+                late: { ...SHIFT_REQUIREMENTS.late },
+                night: { ...SHIFT_REQUIREMENTS.night }
+            };
+            
+            // 総勤務人数を目標値に制限
+            const totalMinRequired = SHIFT_REQUIREMENTS.day.min + SHIFT_REQUIREMENTS.late.min + SHIFT_REQUIREMENTS.night.min;
+            if (targetWorkingStaff >= totalMinRequired) {
+                const excessCapacity = targetWorkingStaff - totalMinRequired;
+                // 余剰分を各シフトに振り分け（優先度：日勤 > 遅番 > 夜勤）
+                let remaining = excessCapacity;
+                if (remaining > 0 && adjustedRequirements.day.max > adjustedRequirements.day.min) {
+                    const dayIncrease = Math.min(remaining, adjustedRequirements.day.max - adjustedRequirements.day.min);
+                    adjustedRequirements.day.min += dayIncrease;
+                    remaining -= dayIncrease;
+                }
+                if (remaining > 0 && adjustedRequirements.late.max > adjustedRequirements.late.min) {
+                    const lateIncrease = Math.min(remaining, adjustedRequirements.late.max - adjustedRequirements.late.min);
+                    adjustedRequirements.late.min += lateIncrease;
+                    remaining -= lateIncrease;
+                }
+                if (remaining > 0 && adjustedRequirements.night.max > adjustedRequirements.night.min) {
+                    const nightIncrease = Math.min(remaining, adjustedRequirements.night.max - adjustedRequirements.night.min);
+                    adjustedRequirements.night.min += nightIncrease;
+                }
             }
-        });
+            
+            // 調整された要件でシフト割り当て
+            ['day', 'late', 'night'].forEach(shiftType => {
+                const assigned = assignShiftWithAdjustedConstraints(
+                    shiftType,
+                    dateStr,
+                    availableStaff,
+                    staffConstraints,
+                    adjustedRequirements[shiftType]
+                );
+                if (assigned.length > 0) {
+                    shiftData[dateStr][shiftType] = assigned;
+                }
+            });
+        }
         
         // 365日必ず誰かが勤務しているかチェック
         const totalAssigned = Object.values(shiftData[dateStr]).reduce((sum, staffIds) => sum + staffIds.length, 0);
@@ -1310,8 +1373,8 @@ function showMonthlyStats() {
             </table>
             <p style="margin-top: 15px; font-size: 14px; color: #666;">※ 赤色背景: 各スタッフの設定した最低休日数未満のスタッフ</p>
             <div style="text-align: center; margin-top: 20px;">
-                <button class="btn" style="background: #28a745; margin-right: 10px;" onclick="downloadStatsCSV()">📄 統計をCSVダウンロード</button>
-                <button class="btn" style="background: #17a2b8;" onclick="downloadScheduleCSV()">📅 シフト表をCSVダウンロード</button>
+                <button class="btn" style="background: #28a745; margin-right: 10px;" onclick="try { downloadStatsCSV(); } catch(e) { console.error('CSV Error:', e); alert('CSVダウンロードエラー: ' + e.message); }">📄 統計をCSVダウンロード</button>
+                <button class="btn" style="background: #17a2b8;" onclick="try { downloadScheduleCSV(); } catch(e) { console.error('CSV Error:', e); alert('CSVダウンロードエラー: ' + e.message); }">📅 シフト表をCSVダウンロード</button>
             </div>
         </div>
     `;
@@ -1362,23 +1425,38 @@ function showDownloadOptions() {
 
 // CSV ダウンロード機能を追加
 function downloadStatsCSV() {
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-    const monthlyRestDays = calculateMonthlyRestDays(year, month);
-    
-    let csvContent = `${year}年${month + 1}月 勤務統計\n`;
-    csvContent += 'スタッフ名,休日数,日勤,遅番,夜勤,スキル\n';
-    
-    staffData.forEach(staff => {
-        const stats = calculateStaffMonthlyStats(staff.id, year, month);
-        const restDays = monthlyRestDays[staff.id] || 0;
-        const skills = staff.skills.join('・') || 'なし';
+    console.log('勤務統計CSV作成開始');
+    try {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        console.log(`年月: ${year}年${month + 1}月`);
         
-        csvContent += `${staff.name},${restDays},${stats.day},${stats.late},${stats.night},${skills}\n`;
-    });
-    
-    downloadCSV(csvContent, `勤務統計_${year}年${month + 1}月.csv`);
-    document.getElementById('downloadModal').remove();
+        const monthlyRestDays = calculateMonthlyRestDays(year, month);
+        console.log('休日数計算完了:', monthlyRestDays);
+        
+        let csvContent = `${year}年${month + 1}月 勤務統計\n`;
+        csvContent += 'スタッフ名,休日数,日勤,遅番,夜勤,スキル\n';
+        
+        staffData.forEach(staff => {
+            const stats = calculateStaffMonthlyStats(staff.id, year, month);
+            const restDays = monthlyRestDays[staff.id] || 0;
+            const skills = staff.skills.join('・') || 'なし';
+            
+            csvContent += `${staff.name},${restDays},${stats.day},${stats.late},${stats.night},${skills}\n`;
+        });
+        
+        console.log('CSV内容作成完了');
+        downloadCSV(csvContent, `勤務統計_${year}年${month + 1}月.csv`);
+        
+        const modal = document.getElementById('downloadModal');
+        if (modal) {
+            modal.remove();
+        }
+        console.log('勤務統計CSV処理完了');
+    } catch (error) {
+        console.error('勤務統計CSV作成エラー:', error);
+        alert('勤務統計CSVの作成でエラーが発生しました: ' + error.message);
+    }
 }
 
 function downloadScheduleCSV() {
@@ -1596,6 +1674,152 @@ function showDayDetailGantt(dateStr) {
             modal.remove();
         }
     });
+}
+
+// スタッフごとの月間休日数を計算
+function calculateMonthlyRestDays(year, month) {
+    const restDays = {};
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    // 各スタッフの休日数を初期化
+    staffData.forEach(staff => {
+        restDays[staff.id] = 0;
+    });
+    
+    // 各日付をチェック
+    for (let day = 1; day <= lastDay; day++) {
+        const dateStr = formatDate(new Date(year, month, day));
+        
+        // その日に勤務しているスタッフを収集
+        const workingStaff = new Set();
+        
+        if (shiftData[dateStr]) {
+            Object.values(shiftData[dateStr]).forEach(staffIds => {
+                staffIds.forEach(id => workingStaff.add(parseInt(id)));
+            });
+        }
+        
+        // 前日の夜勤スタッフも勤務扱い
+        const prevDate = new Date(year, month, day - 1);
+        const prevDateStr = formatDate(prevDate);
+        if (shiftData[prevDateStr] && shiftData[prevDateStr].night) {
+            shiftData[prevDateStr].night.forEach(id => workingStaff.add(parseInt(id)));
+        }
+        
+        // 勤務していないスタッフは休日としてカウント
+        staffData.forEach(staff => {
+            if (!workingStaff.has(staff.id)) {
+                restDays[staff.id]++;
+            }
+        });
+    }
+    
+    return restDays;
+}
+
+// スタッフの月間シフト統計を計算
+function calculateStaffMonthlyStats(staffId, year, month) {
+    const stats = { day: 0, late: 0, night: 0 };
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    for (let day = 1; day <= lastDay; day++) {
+        const dateStr = formatDate(new Date(year, month, day));
+        
+        if (shiftData[dateStr]) {
+            Object.entries(shiftData[dateStr]).forEach(([shiftType, staffIds]) => {
+                if (staffIds.includes(staffId)) {
+                    stats[shiftType]++;
+                }
+            });
+        }
+    }
+    
+    return stats;
+}
+
+// 調整された要件でシフト割り当て
+function assignShiftWithAdjustedConstraints(shiftType, dateStr, availableStaff, staffConstraints, requirements) {
+    const assigned = [];
+    const assignedToday = new Set(); // その日に既に割り当てられたスタッフ
+    
+    // その日の既存のシフトから既に割り当てられたスタッフを収集
+    if (shiftData[dateStr]) {
+        Object.values(shiftData[dateStr]).forEach(staffIds => {
+            staffIds.forEach(id => assignedToday.add(id));
+        });
+    }
+    
+    // その日にまだ割り当てられていないスタッフのみをフィルタ
+    const availableForShift = availableStaff.filter(staff => !assignedToday.has(staff.id));
+    
+    // ランダム性を加える
+    const shuffled = [...availableForShift].sort(() => Math.random() - 0.5);
+    
+    // 必須スキルを持つスタッフを優先
+    const withRequiredSkills = shuffled.filter(staff => 
+        requirements.requiredSkills.some(skill => staff.skills.includes(skill))
+    );
+    const withoutRequiredSkills = shuffled.filter(staff => 
+        !requirements.requiredSkills.some(skill => staff.skills.includes(skill))
+    );
+    
+    // 必須スキルを持つスタッフから割り当て
+    for (const staff of withRequiredSkills) {
+        if (assigned.length >= requirements.max) break;
+        
+        if (canAssignToShift(staff, shiftType, dateStr, staffConstraints)) {
+            assigned.push(staff.id);
+            assignedToday.add(staff.id);
+        }
+    }
+    
+    // 残りのスタッフから割り当て
+    for (const staff of withoutRequiredSkills) {
+        if (assigned.length >= requirements.max) break;
+        
+        if (canAssignToShift(staff, shiftType, dateStr, staffConstraints)) {
+            assigned.push(staff.id);
+            assignedToday.add(staff.id);
+        }
+    }
+    
+    // 最小人数を満たしているかチェック
+    if (assigned.length < requirements.min) {
+        const availableForMin = availableForShift.filter(staff => !assigned.includes(staff.id));
+        
+        // 夜勤の場合は特別処理
+        if (shiftType === 'night') {
+            const nightCapable = availableForMin.filter(staff => {
+                const constraint = staffConstraints[staff.id];
+                return constraint.nightCount < staff.maxNightShifts;
+            });
+            
+            for (const staff of nightCapable) {
+                if (assigned.length >= requirements.min) break;
+                assigned.push(staff.id);
+                assignedToday.add(staff.id);
+            }
+            
+            if (assigned.length < requirements.min) {
+                for (const staff of availableForMin) {
+                    if (assigned.length >= requirements.min) break;
+                    if (!assigned.includes(staff.id)) {
+                        assigned.push(staff.id);
+                        assignedToday.add(staff.id);
+                        console.warn(`${dateStr}: ${staff.name}を夜勤に強制割り当て`);
+                    }
+                }
+            }
+        } else {
+            for (const staff of availableForMin) {
+                if (assigned.length >= requirements.min) break;
+                assigned.push(staff.id);
+                assignedToday.add(staff.id);
+            }
+        }
+    }
+    
+    return assigned;
 }
 
 // 初期化実行
