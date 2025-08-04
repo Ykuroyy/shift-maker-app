@@ -99,6 +99,11 @@ function renderStaffList() {
         staffItem.addEventListener('dragstart', handleDragStart);
         staffItem.addEventListener('dragend', handleDragEnd);
         
+        // スマホ向けタッチイベント
+        staffItem.addEventListener('touchstart', handleTouchStart, { passive: false });
+        staffItem.addEventListener('touchmove', handleTouchMove, { passive: false });
+        staffItem.addEventListener('touchend', handleTouchEnd, { passive: false });
+        
         staffListEl.appendChild(staffItem);
     });
 }
@@ -422,6 +427,8 @@ function showShiftDetail(dateStr) {
 
 // ドラッグ&ドロップ処理
 let draggedStaffId = null;
+let touchStartPos = null;
+let draggedElement = null;
 
 function handleDragStart(e) {
     draggedStaffId = e.target.dataset.staffId;
@@ -430,6 +437,140 @@ function handleDragStart(e) {
 
 function handleDragEnd(e) {
     e.target.classList.remove('dragging');
+}
+
+// タッチイベント処理（スマホ対応）
+function handleTouchStart(e) {
+    draggedStaffId = e.target.dataset.staffId;
+    draggedElement = e.target;
+    const touch = e.touches[0];
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+    e.target.classList.add('dragging');
+    e.preventDefault();
+}
+
+function handleTouchMove(e) {
+    if (!draggedStaffId) return;
+    
+    const touch = e.touches[0];
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    
+    // 既存のhover効果をクリア
+    document.querySelectorAll('.calendar-day.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+    });
+    
+    // カレンダーの日付セルの上にある場合
+    const calendarDay = elementBelow?.closest('.calendar-day');
+    if (calendarDay) {
+        calendarDay.classList.add('drag-over');
+    }
+    
+    e.preventDefault();
+}
+
+function handleTouchEnd(e) {
+    if (!draggedStaffId) return;
+    
+    const touch = e.changedTouches[0];
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const calendarDay = elementBelow?.closest('.calendar-day');
+    
+    if (calendarDay) {
+        const dateStr = calendarDay.dataset.date;
+        // シフト選択のモーダルを表示
+        showShiftSelectionModal(draggedStaffId, dateStr);
+    }
+    
+    // クリーンアップ
+    document.querySelectorAll('.calendar-day.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+    });
+    
+    if (draggedElement) {
+        draggedElement.classList.remove('dragging');
+    }
+    
+    draggedStaffId = null;
+    draggedElement = null;
+    touchStartPos = null;
+}
+
+// シフト選択モーダル（スマホ向け）
+function showShiftSelectionModal(staffId, dateStr) {
+    const staff = staffData.find(s => s.id === parseInt(staffId));
+    const date = new Date(dateStr);
+    const dateLabel = `${date.getMonth() + 1}月${date.getDate()}日`;
+    
+    // 既存のモーダルを削除
+    const existingModal = document.getElementById('shiftSelectionModal');
+    if (existingModal) existingModal.remove();
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'shiftSelectionModal';
+    modal.style.display = 'block';
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="document.getElementById('shiftSelectionModal').remove()">&times;</span>
+            <h3>${staff.name}さんの${dateLabel}のシフト</h3>
+            <div style="margin: 20px 0;">
+                <button class="btn" style="background: #fff3cd; color: #856404; margin: 5px 0;" onclick="assignStaffToShift('${staffId}', '${dateStr}', 'day')">
+                    日勤 (9:00-17:30)
+                </button>
+                <button class="btn" style="background: #cce5ff; color: #004085; margin: 5px 0;" onclick="assignStaffToShift('${staffId}', '${dateStr}', 'late')">
+                    遅番 (16:00-24:00)
+                </button>
+                <button class="btn" style="background: #d1ecf1; color: #0c5460; margin: 5px 0;" onclick="assignStaffToShift('${staffId}', '${dateStr}', 'night')">
+                    夜勤 (23:00-翌9:00)
+                </button>
+                <button class="btn" style="background: #6c757d; color: white; margin: 5px 0;" onclick="document.getElementById('shiftSelectionModal').remove()">
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // モーダル外クリックで閉じる
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// スタッフをシフトに割り当て
+function assignStaffToShift(staffId, dateStr, shiftType) {
+    const staff = staffData.find(s => s.id === parseInt(staffId));
+    
+    // 重複チェック
+    if (shiftData[dateStr]) {
+        const alreadyAssigned = Object.values(shiftData[dateStr]).some(staffIds => 
+            Array.isArray(staffIds) && staffIds.includes(parseInt(staffId))
+        );
+        
+        if (alreadyAssigned) {
+            alert('このスタッフは既にこの日にシフトが割り当てられています。');
+            document.getElementById('shiftSelectionModal').remove();
+            return;
+        }
+    }
+    
+    // シフトに追加
+    if (!shiftData[dateStr]) shiftData[dateStr] = {};
+    if (!shiftData[dateStr][shiftType]) shiftData[dateStr][shiftType] = [];
+    
+    shiftData[dateStr][shiftType].push(parseInt(staffId));
+    
+    // 画面を更新
+    renderCalendar();
+    selectDate(dateStr);
+    
+    // モーダルを閉じる
+    document.getElementById('shiftSelectionModal').remove();
 }
 
 function handleDragOver(e) {
@@ -758,14 +899,12 @@ function autoGenerateShifts() {
             !requestedDaysOff[dateStr] || !requestedDaysOff[dateStr].includes(staff.id)
         );
         
-        // 希望休みのスタッフを最初に休みに設定
+        // 希望休みスタッフの記録（実際のrest設定は後で行う）
         const requestedOffStaff = requestedDaysOff[dateStr] || [];
-        if (requestedOffStaff.length > 0) {
-            shiftData[dateStr].rest = [...requestedOffStaff];
-        }
         
         // 勤務可能なスタッフが目標より少ない場合は全員働く
         if (availableForWork.length <= targetWorkingStaff) {
+            console.log(`${dateStr}: 勤務可能スタッフ不足 - 全員働く (利用可能: ${availableForWork.length}, 目標勤務: ${targetWorkingStaff})`);
             ['day', 'late', 'night'].forEach(shiftType => {
                 const assigned = assignShiftWithConstraints(
                     shiftType,
@@ -774,6 +913,7 @@ function autoGenerateShifts() {
                     staffConstraints,
                     dayOfWeek
                 );
+                console.log(`${dateStr} ${shiftType}: ${assigned.length}名割り当て`);
                 if (assigned.length > 0) {
                     shiftData[dateStr][shiftType] = assigned;
                 }
@@ -956,12 +1096,17 @@ function autoGenerateShifts() {
         const allStaffIds = staffData.map(s => s.id);
         const restStaffIds = allStaffIds.filter(id => !workingStaffIds.includes(id));
         
-        if (restStaffIds.length > 0) {
-            shiftData[dateStr].rest = restStaffIds;
-        } else if (currentRestStaff.length === 0) {
+        // 希望休みも含めて休みスタッフを設定
+        const finalRestStaff = [...new Set([...requestedOffStaff, ...restStaffIds])];
+        
+        if (finalRestStaff.length > 0) {
+            shiftData[dateStr].rest = finalRestStaff;
+        } else {
             // 誰も休めない場合は警告を記録
             shiftData[dateStr].restWarning = `休み人数不足: 目標${TARGET_REST_COUNT}名に対し0名`;
         }
+        
+        console.log(`${dateStr}: 勤務者 ${workingStaffIds.length}名, 休み ${finalRestStaff.length}名`);
         
         // 休み人数が目標に達しない場合の警告
         const actualRestCount = shiftData[dateStr].rest ? shiftData[dateStr].rest.length : 0;
@@ -999,19 +1144,24 @@ function getAvailableStaff(dateStr, staffConstraints) {
 
 // シフトにスタッフを割り当て
 function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffConstraints) {
+    console.log(`${dateStr} ${shiftType}割り当て開始 - 利用可能スタッフ: ${availableStaff.length}名`);
     const requirements = SHIFT_REQUIREMENTS[shiftType];
     const assigned = [];
     const assignedToday = new Set(); // その日に既に割り当てられたスタッフ
     
-    // その日の既存のシフトから既に割り当てられたスタッフを収集
+    // その日の既存のシフトから既に割り当てられたスタッフを収集（restは除く）
     if (shiftData[dateStr]) {
-        Object.values(shiftData[dateStr]).forEach(staffIds => {
-            staffIds.forEach(id => assignedToday.add(id));
+        Object.entries(shiftData[dateStr]).forEach(([shiftName, staffIds]) => {
+            if (shiftName !== 'rest' && shiftName !== 'restWarning') {
+                staffIds.forEach(id => assignedToday.add(id));
+            }
         });
     }
+    console.log(`${dateStr} ${shiftType}: 既に割り当て済み ${assignedToday.size}名`);
     
     // その日にまだ割り当てられていないスタッフのみをフィルタ
     const availableForShift = availableStaff.filter(staff => !assignedToday.has(staff.id));
+    console.log(`${dateStr} ${shiftType}: 割り当て可能 ${availableForShift.length}名`);
     
     // ランダム性を加える
     const shuffled = [...availableForShift].sort(() => Math.random() - 0.5);
@@ -1820,10 +1970,12 @@ function assignShiftWithAdjustedConstraints(shiftType, dateStr, availableStaff, 
     const assigned = [];
     const assignedToday = new Set(); // その日に既に割り当てられたスタッフ
     
-    // その日の既存のシフトから既に割り当てられたスタッフを収集
+    // その日の既存のシフトから既に割り当てられたスタッフを収集（restは除く）
     if (shiftData[dateStr]) {
-        Object.values(shiftData[dateStr]).forEach(staffIds => {
-            staffIds.forEach(id => assignedToday.add(id));
+        Object.entries(shiftData[dateStr]).forEach(([shiftName, staffIds]) => {
+            if (shiftName !== 'rest' && shiftName !== 'restWarning') {
+                staffIds.forEach(id => assignedToday.add(id));
+            }
         });
     }
     

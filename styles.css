@@ -28,6 +28,118 @@ h1 {
     gap: 20px;
 }
 
+/* スマホ対応 */
+@media (max-width: 768px) {
+    .main-content {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .container {
+        padding: 10px;
+    }
+    
+    /* カレンダーのスマホ対応 */
+    .calendar-day {
+        min-height: 80px;
+        padding: 3px;
+        font-size: 12px;
+    }
+    
+    .calendar-day-number {
+        font-size: 14px;
+        margin-bottom: 3px;
+    }
+    
+    .shift-slot {
+        margin: 1px 0;
+        padding: 1px 3px;
+        font-size: 10px;
+        border-radius: 2px;
+    }
+    
+    /* ボタンのスマホ対応 */
+    .btn {
+        padding: 12px 16px;
+        font-size: 14px;
+        width: 100%;
+        margin: 5px 0;
+    }
+    
+    /* ヘルプセクションのスマホ対応 */
+    .help-grid {
+        display: block !important;
+    }
+    
+    .help-grid > div {
+        margin-bottom: 20px;
+    }
+    
+    /* モーダルのスマホ対応 */
+    .modal-content {
+        width: 95% !important;
+        max-width: none !important;
+        margin: 2% auto !important;
+        padding: 15px !important;
+        max-height: 95vh !important;
+    }
+    
+    /* フォーム要素のスマホ対応 */
+    input, select {
+        font-size: 16px; /* iOS のズーム防止 */
+        padding: 12px;
+    }
+    
+    /* スタッフ管理のスマホ対応 */
+    .staff-edit-item {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+    
+    /* スタッフアイテムのタッチエリア拡大 */
+    .staff-item {
+        padding: 15px 10px;
+        font-size: 14px;
+        touch-action: none; /* スクロールを無効化してドラッグを優先 */
+    }
+    
+    /* カレンダーのタッチエリア */
+    .calendar-day {
+        touch-action: manipulation;
+    }
+    
+    /* ドラッグ中の視覚フィードバック強化 */
+    .staff-item.dragging {
+        opacity: 0.7;
+        transform: scale(1.05);
+        z-index: 1000;
+    }
+    
+    .calendar-day.drag-over {
+        background: #e3f2fd !important;
+        border: 3px dashed #2196f3 !important;
+        transform: scale(1.02);
+    }
+}
+
+/* タブレット対応 */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .main-content {
+        grid-template-columns: 200px 1fr 250px;
+        gap: 15px;
+    }
+    
+    .calendar-day {
+        min-height: 90px;
+        padding: 4px;
+    }
+    
+    .shift-slot {
+        font-size: 11px;
+        padding: 2px 4px;
+    }
+}
+
 /* スタッフセクション */
 .staff-section {
     background: white;
