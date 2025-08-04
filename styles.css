@@ -137,6 +137,12 @@ h1 {
     color: #721c24;
 }
 
+.shift-slot.rest-day {
+    background: #d4edda;
+    color: #155724;
+    border: 1px dashed #28a745;
+}
+
 /* シフト詳細セクション */
 .shift-section {
     background: white;

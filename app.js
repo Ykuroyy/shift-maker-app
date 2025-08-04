@@ -69,12 +69,6 @@ function init() {
     renderStaffList();
     renderCalendar();
     setupEventListeners();
-    // ガントチャートボタンを追加
-    addGanttChartButton();
-    // CSVダウンロードボタンを追加
-    addDownloadButton();
-    // 月間統計ボタンを追加
-    addStatsButton();
 }
 
 // スタッフリストの表示
@@ -218,6 +212,22 @@ function createCalendarDay(year, month, day, isOtherMonth) {
         });
     }
     
+    // 休みのスタッフ表示（希望休み以外）
+    const restingStaff = staffData.filter(staff => {
+        // 既に勤務に割り当てられていない
+        if (workingStaffIds.has(staff.id)) return false;
+        // 希望休みではない
+        if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) return false;
+        return true;
+    });
+    
+    restingStaff.forEach(staff => {
+        const restEl = document.createElement('div');
+        restEl.className = 'shift-slot rest-day';
+        restEl.textContent = `${staff.name}(休)`;
+        shiftsEl.appendChild(restEl);
+    });
+    
     // クリックイベント
     dayEl.addEventListener('click', (e) => {
         // ダブルクリックで詳細表示
@@ -342,6 +352,24 @@ function showShiftDetail(dateStr) {
         html += '</ul></div>';
     }
     
+    // 休みのスタッフ（希望休み以外）
+    const restingStaff = staffData.filter(staff => {
+        // 既に勤務に割り当てられていない
+        if (workingStaffIds.has(staff.id)) return false;
+        // 希望休みではない
+        if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) return false;
+        return true;
+    });
+    
+    if (restingStaff.length > 0) {
+        html += '<div style="margin: 15px 0;">';
+        html += '<h4>休み</h4><ul>';
+        restingStaff.forEach(staff => {
+            html += `<li style="color: #28a745;">${staff.name}</li>`;
+        });
+        html += '</ul></div>';
+    }
+    
     shiftDetailEl.innerHTML = html;
 }
 
@@ -439,6 +467,21 @@ function setupEventListeners() {
     // 自動割り当てボタン
     document.getElementById('autoAssignBtn').addEventListener('click', () => {
         showShiftRequirementsModal();
+    });
+    
+    // 月間統計ボタン
+    document.getElementById('statsBtn').addEventListener('click', () => {
+        showMonthlyStats();
+    });
+    
+    // CSVダウンロードボタン
+    document.getElementById('csvBtn').addEventListener('click', () => {
+        showDownloadOptions();
+    });
+    
+    // ガントチャートボタン
+    document.getElementById('ganttBtn').addEventListener('click', () => {
+        showGanttChart();
     });
     
     // モーダルの閉じるボタン
