@@ -605,6 +605,52 @@ function autoGenerateShifts() {
             }
         }
         
+        // 夜勤の最低人数チェック（特に重要）
+        if (!shiftData[dateStr].night || shiftData[dateStr].night.length < SHIFT_REQUIREMENTS.night.min) {
+            const currentNightCount = shiftData[dateStr].night ? shiftData[dateStr].night.length : 0;
+            const needed = SHIFT_REQUIREMENTS.night.min - currentNightCount;
+            
+            // 夜勤に追加可能なスタッフを探す
+            const nightCandidates = staffData.filter(staff => {
+                // すでに夜勤に割り当てられていない
+                if (shiftData[dateStr].night && shiftData[dateStr].night.includes(staff.id)) return false;
+                // 希望休みでない
+                if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) return false;
+                // 他のシフトに入っていない
+                const inOtherShift = Object.entries(shiftData[dateStr]).some(([type, ids]) => 
+                    type !== 'night' && ids.includes(staff.id)
+                );
+                if (inOtherShift) return false;
+                
+                return true;
+            });
+            
+            // 夜勤に追加
+            const toAdd = nightCandidates.slice(0, needed);
+            if (!shiftData[dateStr].night) shiftData[dateStr].night = [];
+            toAdd.forEach(staff => {
+                shiftData[dateStr].night.push(staff.id);
+                console.warn(`${dateStr}: ${staff.name}を夜勤に追加割り当て（最低人数確保のため）`);
+            });
+            
+            // それでも足りない場合は他のシフトから移動
+            if (shiftData[dateStr].night.length < SHIFT_REQUIREMENTS.night.min) {
+                const stillNeeded = SHIFT_REQUIREMENTS.night.min - shiftData[dateStr].night.length;
+                let moved = 0;
+                
+                // 日勤から移動（日勤は人数に余裕がある場合が多い）
+                if (shiftData[dateStr].day && shiftData[dateStr].day.length > SHIFT_REQUIREMENTS.day.min) {
+                    const toMove = Math.min(stillNeeded, shiftData[dateStr].day.length - SHIFT_REQUIREMENTS.day.min);
+                    for (let i = 0; i < toMove; i++) {
+                        const staffId = shiftData[dateStr].day.pop();
+                        shiftData[dateStr].night.push(staffId);
+                        moved++;
+                        console.warn(`${dateStr}: スタッフID${staffId}を日勤から夜勤へ移動`);
+                    }
+                }
+            }
+        }
+        
         // 制約情報を更新
         updateStaffConstraints(dateStr, shiftData[dateStr], staffConstraints);
     }
