@@ -171,10 +171,19 @@ function createCalendarDay(year, month, day, isOtherMonth) {
         }
     }
     
+    // 休み人数警告チェック
+    let restWarning = '';
+    if (dayShifts.restWarning) {
+        restWarning = '<div style="font-size: 8px; color: #dc3545; font-weight: bold; text-align: center;">⚠️休み不足</div>';
+    } else if (restCount < TARGET_REST_COUNT) {
+        restWarning = '<div style="font-size: 8px; color: #dc3545; font-weight: bold; text-align: center;">⚠️休み不足</div>';
+    }
+    
     dayEl.innerHTML = `
         <div class="calendar-day-number">${day}</div>
         <div style="font-size: 10px; color: #666; text-align: right;">休:${restCount}</div>
         ${shortageIndicator}
+        ${restWarning}
     `;
     
     // シフト表示エリア
@@ -368,6 +377,21 @@ function showShiftDetail(dateStr) {
             html += `<li style="color: #28a745;">${staff.name}</li>`;
         });
         html += '</ul></div>';
+    }
+    
+    // 休み人数の警告表示
+    if (restCount < TARGET_REST_COUNT) {
+        html += `<div style="margin: 15px 0; padding: 10px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
+            <strong>⚠️ 休み人数不足</strong><br>
+            目標: ${TARGET_REST_COUNT}名 / 実際: ${restCount}名
+        </div>`;
+    }
+    
+    // restWarningがある場合も表示
+    if (shiftData[dateStr] && shiftData[dateStr].restWarning) {
+        html += `<div style="margin: 15px 0; padding: 10px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
+            <strong>⚠️ ${shiftData[dateStr].restWarning}</strong>
+        </div>`;
     }
     
     shiftDetailEl.innerHTML = html;
@@ -711,6 +735,12 @@ function autoGenerateShifts() {
             !requestedDaysOff[dateStr] || !requestedDaysOff[dateStr].includes(staff.id)
         );
         
+        // 希望休みのスタッフを最初に休みに設定
+        const requestedOffStaff = requestedDaysOff[dateStr] || [];
+        if (requestedOffStaff.length > 0) {
+            shiftData[dateStr].rest = [...requestedOffStaff];
+        }
+        
         // 勤務可能なスタッフが目標より少ない場合は全員働く
         if (availableForWork.length <= targetWorkingStaff) {
             ['day', 'late', 'night'].forEach(shiftType => {
@@ -890,6 +920,31 @@ function autoGenerateShifts() {
         
         // 制約情報を更新
         updateStaffConstraints(dateStr, shiftData[dateStr], staffConstraints);
+        
+        // 目標休み人数の確保
+        const currentRestStaff = shiftData[dateStr].rest || [];
+        const workingStaffIds = [
+            ...(shiftData[dateStr].day || []),
+            ...(shiftData[dateStr].late || []),
+            ...(shiftData[dateStr].night || [])
+        ];
+        
+        // 勤務していないスタッフを休みに設定
+        const allStaffIds = staffData.map(s => s.id);
+        const restStaffIds = allStaffIds.filter(id => !workingStaffIds.includes(id));
+        
+        if (restStaffIds.length > 0) {
+            shiftData[dateStr].rest = restStaffIds;
+        } else if (currentRestStaff.length === 0) {
+            // 誰も休めない場合は警告を記録
+            shiftData[dateStr].restWarning = `休み人数不足: 目標${TARGET_REST_COUNT}名に対し0名`;
+        }
+        
+        // 休み人数が目標に達しない場合の警告
+        const actualRestCount = shiftData[dateStr].rest ? shiftData[dateStr].rest.length : 0;
+        if (actualRestCount < TARGET_REST_COUNT) {
+            shiftData[dateStr].restWarning = `休み人数不足: 目標${TARGET_REST_COUNT}名に対し${actualRestCount}名`;
+        }
     }
     
     // カレンダーを再描画
