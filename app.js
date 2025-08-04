@@ -27,6 +27,9 @@ const SHIFT_REQUIREMENTS = {
     night: { min: 3, max: 3, requiredSkills: ['リーダー'] }
 };
 
+// 休み人数の目標設定
+let TARGET_REST_COUNT = 2;
+
 // 利用可能なスキルのマスタ
 const SKILL_MASTER = [
     'リーダー',
@@ -160,9 +163,24 @@ function createCalendarDay(year, month, day, isOtherMonth) {
     }
     const restCount = staffData.length - workingStaffIds.size;
     
+    // 規定人数不足チェック
+    let shortageIndicator = '';
+    if (shiftData[dateStr]) {
+        const dayCount = shiftData[dateStr].day ? shiftData[dateStr].day.length : 0;
+        const lateCount = shiftData[dateStr].late ? shiftData[dateStr].late.length : 0;
+        const nightCount = shiftData[dateStr].night ? shiftData[dateStr].night.length : 0;
+        
+        if (dayCount < SHIFT_REQUIREMENTS.day.min || 
+            lateCount < SHIFT_REQUIREMENTS.late.min || 
+            nightCount < SHIFT_REQUIREMENTS.night.min) {
+            shortageIndicator = '<div style="font-size: 8px; color: #f44336; font-weight: bold; text-align: center;">⚠️不足</div>';
+        }
+    }
+    
     dayEl.innerHTML = `
         <div class="calendar-day-number">${day}</div>
         <div style="font-size: 10px; color: #666; text-align: right;">休:${restCount}</div>
+        ${shortageIndicator}
     `;
     
     // シフト表示エリア
@@ -256,10 +274,36 @@ function showShiftDetail(dateStr) {
     
     const restCount = staffData.length - workingStaffIds.size;
     
+    // 規定人数不足チェック
+    const shortageWarnings = [];
+    if (shiftData[dateStr]) {
+        const dayCount = shiftData[dateStr].day ? shiftData[dateStr].day.length : 0;
+        const lateCount = shiftData[dateStr].late ? shiftData[dateStr].late.length : 0;
+        const nightCount = shiftData[dateStr].night ? shiftData[dateStr].night.length : 0;
+        
+        if (dayCount < SHIFT_REQUIREMENTS.day.min) {
+            shortageWarnings.push(`日勤: ${dayCount}/${SHIFT_REQUIREMENTS.day.min}名`);
+        }
+        if (lateCount < SHIFT_REQUIREMENTS.late.min) {
+            shortageWarnings.push(`遅番: ${lateCount}/${SHIFT_REQUIREMENTS.late.min}名`);
+        }
+        if (nightCount < SHIFT_REQUIREMENTS.night.min) {
+            shortageWarnings.push(`夜勤: ${nightCount}/${SHIFT_REQUIREMENTS.night.min}名`);
+        }
+    }
+    
     let html = `<h3>${dateLabel}</h3>`;
     html += `<div style="background: #e3f2fd; padding: 10px; margin: 10px 0; border-radius: 5px;">`;
     html += `<strong>📅 この日の休み: ${restCount}名</strong>`;
     html += `</div>`;
+    
+    // 規定人数不足の警告表示
+    if (shortageWarnings.length > 0) {
+        html += `<div style="background: #ffebee; border: 2px solid #f44336; padding: 10px; margin: 10px 0; border-radius: 5px;">`;
+        html += `<strong style="color: #d32f2f;">⚠️ この日は規定の人数がいない</strong><br>`;
+        html += `<small style="color: #d32f2f;">${shortageWarnings.join(', ')}</small>`;
+        html += `</div>`;
+    }
     
     // シフト別に表示
     Object.entries(SHIFT_TYPES).forEach(([key, shift]) => {
@@ -640,6 +684,31 @@ function autoGenerateShifts() {
                 shiftData[dateStr].day = forceAssign;
                 console.error(`${dateStr}: 強制割り当て実施 - 希望休みを無視して配置`);
             }
+        }
+        
+        // 日勤の最低人数チェック
+        if (!shiftData[dateStr].day || shiftData[dateStr].day.length < SHIFT_REQUIREMENTS.day.min) {
+            const currentDayCount = shiftData[dateStr].day ? shiftData[dateStr].day.length : 0;
+            const neededDay = SHIFT_REQUIREMENTS.day.min - currentDayCount;
+            
+            // 日勤に追加可能なスタッフを探す
+            const dayCandidates = staffData.filter(staff => {
+                if (shiftData[dateStr].day && shiftData[dateStr].day.includes(staff.id)) return false;
+                if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) return false;
+                const inOtherShift = Object.entries(shiftData[dateStr]).some(([type, ids]) => 
+                    type !== 'day' && ids.includes(staff.id)
+                );
+                if (inOtherShift) return false;
+                return true;
+            });
+            
+            // 日勤に追加
+            const toAddDay = dayCandidates.slice(0, neededDay);
+            if (!shiftData[dateStr].day) shiftData[dateStr].day = [];
+            toAddDay.forEach(staff => {
+                shiftData[dateStr].day.push(staff.id);
+                console.warn(`${dateStr}: ${staff.name}を日勤に追加割り当て（最低人数確保のため）`);
+            });
         }
         
         // 遅番の最低人数チェック
@@ -1055,6 +1124,13 @@ function showShiftRequirementsModal() {
                     最大人数: <input type="number" id="night-max" value="${SHIFT_REQUIREMENTS.night.max}" min="1" max="10" style="width: 60px;">
                 </label>
             </div>
+            <div style="margin: 20px 0; padding: 15px; background: #e8f5e8; border-radius: 5px;">
+                <h3>休み人数設定</h3>
+                <label>
+                    目標休み人数: <input type="number" id="target-rest" value="${TARGET_REST_COUNT}" min="0" max="10" style="width: 60px;">
+                    <small style="color: #666; margin-left: 10px;">※ 各日にこの人数の休みを目指します</small>
+                </label>
+            </div>
             <div style="margin-top: 30px; text-align: center;">
                 <button class="btn" onclick="applyRequirementsAndGenerate()">設定して自動作成</button>
                 <button class="btn" style="background: #6c757d; margin-left: 10px;" onclick="document.getElementById('requirementsModal').remove()">キャンセル</button>
@@ -1081,10 +1157,19 @@ function applyRequirementsAndGenerate() {
     const lateMax = parseInt(document.getElementById('late-max').value);
     const nightMin = parseInt(document.getElementById('night-min').value);
     const nightMax = parseInt(document.getElementById('night-max').value);
+    const targetRest = parseInt(document.getElementById('target-rest').value);
     
     // バリデーション
     if (dayMin > dayMax || lateMin > lateMax || nightMin > nightMax) {
         alert('最小人数は最大人数以下にしてください。');
+        return;
+    }
+    
+    // 勤務人数と休み人数の整合性チェック
+    const totalWorking = dayMin + lateMin + nightMin;
+    const totalStaff = staffData.length;
+    if (totalWorking + targetRest > totalStaff) {
+        alert(`設定された人数が総スタッフ数(${totalStaff}名)を超えています。\n勤務: ${totalWorking}名 + 休み: ${targetRest}名 = ${totalWorking + targetRest}名`);
         return;
     }
     
@@ -1095,6 +1180,7 @@ function applyRequirementsAndGenerate() {
     SHIFT_REQUIREMENTS.late.max = lateMax;
     SHIFT_REQUIREMENTS.night.min = nightMin;
     SHIFT_REQUIREMENTS.night.max = nightMax;
+    TARGET_REST_COUNT = targetRest;
     
     // モーダルを閉じる
     document.getElementById('requirementsModal').remove();
