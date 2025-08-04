@@ -8,7 +8,46 @@
 </head>
 <body>
     <div class="container">
-        <h1>シフト作成アプリ</h1>
+        <h1>看護師シフト管理システム</h1>
+        
+        <!-- 使い方説明 -->
+        <div class="help-section" style="background: #e3f2fd; padding: 15px; margin-bottom: 20px; border-radius: 8px; display: none;" id="helpSection">
+            <h3 style="margin-top: 0;">📋 使い方とルール</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4>シフトの種類</h4>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #fff3cd; border: 1px solid #856404; vertical-align: middle;"></span> 日勤：9:00-17:30</li>
+                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #cce5ff; border: 1px solid #004085; vertical-align: middle;"></span> 遅番：16:00-24:00</li>
+                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #d1ecf1; border: 1px solid #0c5460; vertical-align: middle;"></span> 夜勤：23:00-翌9:00</li>
+                        <li style="margin: 5px 0;"><span style="display: inline-block; width: 20px; height: 20px; background: #f8d7da; border: 1px solid #721c24; vertical-align: middle;"></span> 希望休</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>基本的な使い方</h4>
+                    <ol style="padding-left: 20px;">
+                        <li>左側のスタッフをカレンダーにドラッグ&ドロップ</li>
+                        <li>シフトの種類を選択（1:日勤, 2:遅番, 3:夜勤）</li>
+                        <li>同じ日に同じスタッフは1つのシフトのみ</li>
+                        <li>自動割り当て機能で一括作成も可能</li>
+                    </ol>
+                </div>
+            </div>
+            <div style="margin-top: 15px;">
+                <h4>制約ルール（自動割り当て時）</h4>
+                <ul style="padding-left: 20px;">
+                    <li>連続勤務は最大5日まで</li>
+                    <li>夜勤の翌日は夜勤を避ける</li>
+                    <li>スタッフごとの夜勤上限回数を考慮</li>
+                    <li>必須スキル（リーダー等）を持つスタッフを優先配置</li>
+                    <li>新人スタッフの夜勤は少なめに設定</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div style="text-align: right; margin-bottom: 10px;">
+            <button class="btn" style="background: #17a2b8;" onclick="toggleHelp()">💡 使い方を表示</button>
+        </div>
         
         <div class="main-content">
             <!-- 左側：スタッフ一覧 -->
@@ -63,5 +102,19 @@
     </div>
     
     <script src="app.js"></script>
+    <script>
+    // ヘルプの表示/非表示
+    function toggleHelp() {
+        const helpSection = document.getElementById('helpSection');
+        const button = event.target;
+        if (helpSection.style.display === 'none') {
+            helpSection.style.display = 'block';
+            button.textContent = '💡 使い方を隠す';
+        } else {
+            helpSection.style.display = 'none';
+            button.textContent = '💡 使い方を表示';
+        }
+    }
+    </script>
 </body>
 </html>

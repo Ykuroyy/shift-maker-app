@@ -2,7 +2,7 @@
 const SHIFT_TYPES = {
     DAY: { id: 'day', name: '日勤', time: '9:00-17:30', class: 'day-shift' },
     LATE: { id: 'late', name: '遅番', time: '16:00-24:00', class: 'late-shift' },
-    NIGHT: { id: 'night', name: '夜勤', time: '23:00-9:00', class: 'night-shift' },
+    NIGHT: { id: 'night', name: '夜勤', time: '23:00-翌9:00', class: 'night-shift' },
     OFF: { id: 'off', name: '休み', time: '', class: 'requested-off' }
 };
 
@@ -68,6 +68,8 @@ function init() {
     setupEventListeners();
     // ガントチャートボタンを追加
     addGanttChartButton();
+    // CSVダウンロードボタンを追加
+    addDownloadButton();
 }
 
 // スタッフリストの表示
@@ -346,9 +348,7 @@ function setupEventListeners() {
     
     // 自動割り当てボタン
     document.getElementById('autoAssignBtn').addEventListener('click', () => {
-        if (confirm('現在のシフトをクリアして自動作成しますか？')) {
-            autoGenerateShifts();
-        }
+        showShiftRequirementsModal();
     });
     
     // モーダルの閉じるボタン
@@ -382,7 +382,7 @@ function showStaffManagement() {
     staffData.forEach((staff) => {
         html += `
             <div class="staff-edit-item" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
-                <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; align-items: center;">
+                <div style="display: grid; grid-template-columns: 200px 1fr 150px; gap: 10px; align-items: center;">
                     <div>
                         <input type="text" id="staff-name-${staff.id}" value="${staff.name}" style="width: 100%;">
                     </div>
@@ -838,6 +838,234 @@ function addGanttChartButton() {
     // 既存のボタンの後に追加
     const existingButtons = calendarHeader.querySelector('div:last-child');
     existingButtons.appendChild(ganttBtn);
+}
+
+// シフト必要人数設定モーダルを表示
+function showShiftRequirementsModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'requirementsModal';
+    modal.style.display = 'block';
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('requirementsModal').remove()">&times;</span>
+            <h2>シフト必要人数設定</h2>
+            <div style="margin: 20px 0;">
+                <h3>日勤 (9:00-17:30)</h3>
+                <label>
+                    最小人数: <input type="number" id="day-min" value="${SHIFT_REQUIREMENTS.day.min}" min="1" max="10" style="width: 60px;">
+                </label>
+                <label style="margin-left: 20px;">
+                    最大人数: <input type="number" id="day-max" value="${SHIFT_REQUIREMENTS.day.max}" min="1" max="10" style="width: 60px;">
+                </label>
+            </div>
+            <div style="margin: 20px 0;">
+                <h3>遅番 (16:00-24:00)</h3>
+                <label>
+                    最小人数: <input type="number" id="late-min" value="${SHIFT_REQUIREMENTS.late.min}" min="1" max="10" style="width: 60px;">
+                </label>
+                <label style="margin-left: 20px;">
+                    最大人数: <input type="number" id="late-max" value="${SHIFT_REQUIREMENTS.late.max}" min="1" max="10" style="width: 60px;">
+                </label>
+            </div>
+            <div style="margin: 20px 0;">
+                <h3>夜勤 (23:00-9:00)</h3>
+                <label>
+                    最小人数: <input type="number" id="night-min" value="${SHIFT_REQUIREMENTS.night.min}" min="1" max="10" style="width: 60px;">
+                </label>
+                <label style="margin-left: 20px;">
+                    最大人数: <input type="number" id="night-max" value="${SHIFT_REQUIREMENTS.night.max}" min="1" max="10" style="width: 60px;">
+                </label>
+            </div>
+            <div style="margin-top: 30px; text-align: center;">
+                <button class="btn" onclick="applyRequirementsAndGenerate()">設定して自動作成</button>
+                <button class="btn" style="background: #6c757d; margin-left: 10px;" onclick="document.getElementById('requirementsModal').remove()">キャンセル</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // モーダル外クリックで閉じる
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// 必要人数を適用して自動生成
+function applyRequirementsAndGenerate() {
+    // 入力値を取得
+    const dayMin = parseInt(document.getElementById('day-min').value);
+    const dayMax = parseInt(document.getElementById('day-max').value);
+    const lateMin = parseInt(document.getElementById('late-min').value);
+    const lateMax = parseInt(document.getElementById('late-max').value);
+    const nightMin = parseInt(document.getElementById('night-min').value);
+    const nightMax = parseInt(document.getElementById('night-max').value);
+    
+    // バリデーション
+    if (dayMin > dayMax || lateMin > lateMax || nightMin > nightMax) {
+        alert('最小人数は最大人数以下にしてください。');
+        return;
+    }
+    
+    // 設定を更新
+    SHIFT_REQUIREMENTS.day.min = dayMin;
+    SHIFT_REQUIREMENTS.day.max = dayMax;
+    SHIFT_REQUIREMENTS.late.min = lateMin;
+    SHIFT_REQUIREMENTS.late.max = lateMax;
+    SHIFT_REQUIREMENTS.night.min = nightMin;
+    SHIFT_REQUIREMENTS.night.max = nightMax;
+    
+    // モーダルを閉じる
+    document.getElementById('requirementsModal').remove();
+    
+    // 確認後、自動生成
+    if (confirm('現在のシフトをクリアして自動作成しますか？')) {
+        autoGenerateShifts();
+    }
+}
+
+// CSVダウンロードボタンを追加
+function addDownloadButton() {
+    const shiftSection = document.querySelector('.shift-section');
+    const csvBtn = document.createElement('button');
+    csvBtn.className = 'btn';
+    csvBtn.textContent = 'CSVダウンロード';
+    csvBtn.style.marginTop = '10px';
+    csvBtn.style.background = '#17a2b8';
+    csvBtn.addEventListener('click', showDownloadOptions);
+    shiftSection.appendChild(csvBtn);
+}
+
+// CSVダウンロードオプションを表示
+function showDownloadOptions() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.id = 'downloadModal';
+    modal.style.display = 'block';
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <span class="close" onclick="document.getElementById('downloadModal').remove()">&times;</span>
+            <h2>📄 CSVダウンロード</h2>
+            <p>エクセルに貼り付け可能なCSVファイルをダウンロードできます。</p>
+            <div style="margin: 30px 0; text-align: center;">
+                <button class="btn" style="background: #28a745; margin: 10px; padding: 15px 30px;" onclick="downloadStatsCSV()">
+                    📈 勤務統計CSV<br><small>スタッフ別の休日数、シフト回数</small>
+                </button>
+                <button class="btn" style="background: #17a2b8; margin: 10px; padding: 15px 30px;" onclick="downloadScheduleCSV()">
+                    📅 シフト表CSV<br><small>ガントチャート形式のシフト表</small>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // モーダル外クリックで閉じる
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// CSV ダウンロード機能を追加
+function downloadStatsCSV() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const monthlyRestDays = calculateMonthlyRestDays(year, month);
+    
+    let csvContent = `${year}年${month + 1}月 勤務統計\n`;
+    csvContent += 'スタッフ名,休日数,日勤,遅番,夜勤,スキル\n';
+    
+    staffData.forEach(staff => {
+        const stats = calculateStaffMonthlyStats(staff.id, year, month);
+        const restDays = monthlyRestDays[staff.id] || 0;
+        const skills = staff.skills.join('・') || 'なし';
+        
+        csvContent += `${staff.name},${restDays},${stats.day},${stats.late},${stats.night},${skills}\n`;
+    });
+    
+    downloadCSV(csvContent, `勤務統計_${year}年${month + 1}月.csv`);
+    document.getElementById('downloadModal').remove();
+}
+
+function downloadScheduleCSV() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    let csvContent = `${year}年${month + 1}月 シフト表\n`;
+    
+    // ヘッダー行
+    csvContent += 'スタッフ名';
+    for (let day = 1; day <= lastDay; day++) {
+        const date = new Date(year, month, day);
+        const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+        csvContent += `,${day}日(${dayOfWeek})`;
+    }
+    csvContent += '\n';
+    
+    // 各スタッフの行
+    staffData.forEach(staff => {
+        csvContent += staff.name;
+        
+        for (let day = 1; day <= lastDay; day++) {
+            const dateStr = formatDate(new Date(year, month, day));
+            let cellContent = '休';
+            
+            // 希望休みチェック
+            if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) {
+                cellContent = '希望休';
+            } else if (shiftData[dateStr]) {
+                // シフトチェック
+                Object.entries(shiftData[dateStr]).forEach(([shiftType, staffIds]) => {
+                    if (staffIds.includes(staff.id)) {
+                        const shift = SHIFT_TYPES[shiftType.toUpperCase()];
+                        cellContent = shift.name;
+                    }
+                });
+            }
+            
+            // 前日の夜勤チェック（明け）
+            const prevDate = new Date(year, month, day - 1);
+            const prevDateStr = formatDate(prevDate);
+            if (shiftData[prevDateStr] && shiftData[prevDateStr].night && shiftData[prevDateStr].night.includes(staff.id)) {
+                if (cellContent === '休') {
+                    cellContent = '明け';
+                } else {
+                    cellContent += '/明け';
+                }
+            }
+            
+            csvContent += `,${cellContent}`;
+        }
+        csvContent += '\n';
+    });
+    
+    downloadCSV(csvContent, `シフト表_${year}年${month + 1}月.csv`);
+    document.getElementById('downloadModal').remove();
+}
+
+function downloadCSV(content, filename) {
+    // BOMを追加して日本語文字化けを防ぐ  
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
 }
 
 // 初期化実行
