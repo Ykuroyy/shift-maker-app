@@ -66,6 +66,17 @@ let selectedDate = null;
 
 // 初期化
 function init() {
+    console.log('初期化開始');
+    console.log('calendarEl:', calendarEl);
+    console.log('staffListEl:', staffListEl);
+    console.log('currentMonthEl:', currentMonthEl);
+    console.log('shiftDetailEl:', shiftDetailEl);
+    
+    if (!calendarEl || !staffListEl || !currentMonthEl || !shiftDetailEl) {
+        console.error('必要なDOM要素が見つかりません');
+        return;
+    }
+    
     renderStaffList();
     renderCalendar();
     setupEventListeners();
@@ -94,6 +105,7 @@ function renderStaffList() {
 
 // カレンダーの表示
 function renderCalendar() {
+    console.log('カレンダー描画開始');
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     
@@ -109,6 +121,7 @@ function renderCalendar() {
         header.textContent = day;
         calendarEl.appendChild(header);
     });
+    console.log('曜日ヘッダー追加済み');
     
     // 月の最初の日と最後の日
     const firstDay = new Date(year, month, 1);
@@ -123,25 +136,31 @@ function renderCalendar() {
     }
     
     // 当月の日付
+    console.log(`当月の日数: ${lastDay.getDate()}`);
     for (let day = 1; day <= lastDay.getDate(); day++) {
+        console.log(`日付作成中: ${day}`);
         createCalendarDay(year, month, day, false);
     }
     
     // 次月の日付
     const remainingDays = 42 - (firstDayOfWeek + lastDay.getDate());
+    console.log(`次月の日数: ${remainingDays}`);
     for (let day = 1; day <= remainingDays; day++) {
         createCalendarDay(year, month + 1, day, true);
     }
+    console.log('カレンダー描画完了');
 }
 
 // カレンダーの日付セルを作成
 function createCalendarDay(year, month, day, isOtherMonth) {
-    const dayEl = document.createElement('div');
-    dayEl.className = 'calendar-day';
-    if (isOtherMonth) dayEl.classList.add('other-month');
-    
-    const dateStr = formatDate(new Date(year, month, day));
-    dayEl.dataset.date = dateStr;
+    console.log(`createCalendarDay呼び出し: ${year}/${month + 1}/${day}`);
+    try {
+        const dayEl = document.createElement('div');
+        dayEl.className = 'calendar-day';
+        if (isOtherMonth) dayEl.classList.add('other-month');
+        
+        const dateStr = formatDate(new Date(year, month, day));
+        dayEl.dataset.date = dateStr;
     
     // この日の休み人数を計算
     const workingStaffIds = new Set();
@@ -173,7 +192,7 @@ function createCalendarDay(year, month, day, isOtherMonth) {
     
     // 休み人数警告チェック
     let restWarning = '';
-    if (dayShifts.restWarning) {
+    if (shiftData[dateStr] && shiftData[dateStr].restWarning) {
         restWarning = '<div style="font-size: 8px; color: #dc3545; font-weight: bold; text-align: center;">⚠️休み不足</div>';
     } else if (restCount < TARGET_REST_COUNT) {
         restWarning = '<div style="font-size: 8px; color: #dc3545; font-weight: bold; text-align: center;">⚠️休み不足</div>';
@@ -252,7 +271,11 @@ function createCalendarDay(year, month, day, isOtherMonth) {
     dayEl.addEventListener('drop', handleDrop);
     dayEl.addEventListener('dragleave', handleDragLeave);
     
-    calendarEl.appendChild(dayEl);
+        calendarEl.appendChild(dayEl);
+        console.log(`日付セル追加成功: ${day}`);
+    } catch (error) {
+        console.error(`日付セル作成エラー (${year}/${month + 1}/${day}):`, error);
+    }
 }
 
 // 日付選択
@@ -1877,5 +1900,8 @@ function assignShiftWithAdjustedConstraints(shiftType, dateStr, availableStaff, 
     return assigned;
 }
 
-// 初期化実行
-init();
+// DOM読み込み完了後に初期化実行
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM読み込み完了');
+    init();
+});

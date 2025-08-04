@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(open index.html)"
+      "Bash(open index.html)",
+      "Bash(python3:*)"
     ],
     "deny": []
   }
