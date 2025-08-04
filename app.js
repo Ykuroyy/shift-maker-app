@@ -146,7 +146,24 @@ function createCalendarDay(year, month, day, isOtherMonth) {
     const dateStr = formatDate(new Date(year, month, day));
     dayEl.dataset.date = dateStr;
     
-    dayEl.innerHTML = `<div class="calendar-day-number">${day}</div>`;
+    // この日の休み人数を計算
+    const workingStaffIds = new Set();
+    if (shiftData[dateStr]) {
+        Object.values(shiftData[dateStr]).forEach(staffIds => {
+            staffIds.forEach(id => workingStaffIds.add(parseInt(id)));
+        });
+    }
+    // 前日の夜勤スタッフも勤務扱い
+    const prevDateStr = formatDate(new Date(year, month, day - 1));
+    if (shiftData[prevDateStr] && shiftData[prevDateStr].night) {
+        shiftData[prevDateStr].night.forEach(id => workingStaffIds.add(parseInt(id)));
+    }
+    const restCount = staffData.length - workingStaffIds.size;
+    
+    dayEl.innerHTML = `
+        <div class="calendar-day-number">${day}</div>
+        <div style="font-size: 10px; color: #666; text-align: right;">休:${restCount}</div>
+    `;
     
     // シフト表示エリア
     const shiftsEl = document.createElement('div');
@@ -222,7 +239,27 @@ function showShiftDetail(dateStr) {
     const date = new Date(dateStr);
     const dateLabel = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
     
+    // この日の休み人数を計算
+    const workingStaffIds = new Set();
+    if (shiftData[dateStr]) {
+        Object.values(shiftData[dateStr]).forEach(staffIds => {
+            staffIds.forEach(id => workingStaffIds.add(id));
+        });
+    }
+    // 前日の夜勤スタッフも勤務扱い
+    const prevDate = new Date(date);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const prevDateStr = formatDate(prevDate);
+    if (shiftData[prevDateStr] && shiftData[prevDateStr].night) {
+        shiftData[prevDateStr].night.forEach(id => workingStaffIds.add(id));
+    }
+    
+    const restCount = staffData.length - workingStaffIds.size;
+    
     let html = `<h3>${dateLabel}</h3>`;
+    html += `<div style="background: #e3f2fd; padding: 10px; margin: 10px 0; border-radius: 5px;">`;
+    html += `<strong>📅 この日の休み: ${restCount}名</strong>`;
+    html += `</div>`;
     
     // シフト別に表示
     Object.entries(SHIFT_TYPES).forEach(([key, shift]) => {
@@ -603,6 +640,31 @@ function autoGenerateShifts() {
                 shiftData[dateStr].day = forceAssign;
                 console.error(`${dateStr}: 強制割り当て実施 - 希望休みを無視して配置`);
             }
+        }
+        
+        // 遅番の最低人数チェック
+        if (!shiftData[dateStr].late || shiftData[dateStr].late.length < SHIFT_REQUIREMENTS.late.min) {
+            const currentLateCount = shiftData[dateStr].late ? shiftData[dateStr].late.length : 0;
+            const neededLate = SHIFT_REQUIREMENTS.late.min - currentLateCount;
+            
+            // 遅番に追加可能なスタッフを探す
+            const lateCandidates = staffData.filter(staff => {
+                if (shiftData[dateStr].late && shiftData[dateStr].late.includes(staff.id)) return false;
+                if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) return false;
+                const inOtherShift = Object.entries(shiftData[dateStr]).some(([type, ids]) => 
+                    type !== 'late' && ids.includes(staff.id)
+                );
+                if (inOtherShift) return false;
+                return true;
+            });
+            
+            // 遅番に追加
+            const toAddLate = lateCandidates.slice(0, neededLate);
+            if (!shiftData[dateStr].late) shiftData[dateStr].late = [];
+            toAddLate.forEach(staff => {
+                shiftData[dateStr].late.push(staff.id);
+                console.warn(`${dateStr}: ${staff.name}を遅番に追加割り当て（最低人数確保のため）`);
+            });
         }
         
         // 夜勤の最低人数チェック（特に重要）
