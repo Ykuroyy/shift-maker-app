@@ -66,6 +66,8 @@ function init() {
     renderStaffList();
     renderCalendar();
     setupEventListeners();
+    // ガントチャートボタンを追加
+    addGanttChartButton();
 }
 
 // スタッフリストの表示
@@ -281,6 +283,21 @@ function handleDrop(e) {
     const dateStr = e.currentTarget.dataset.date;
     const staffId = parseInt(draggedStaffId);
     
+    // 同じ日に既にシフトがあるかチェック
+    if (shiftData[dateStr]) {
+        let alreadyAssigned = false;
+        Object.keys(shiftData[dateStr]).forEach(shiftType => {
+            if (shiftData[dateStr][shiftType].includes(staffId)) {
+                alreadyAssigned = true;
+            }
+        });
+        
+        if (alreadyAssigned) {
+            alert('このスタッフは既にこの日にシフトが割り当てられています。');
+            return;
+        }
+    }
+    
     // シフト選択ダイアログ（簡易版）
     const shiftType = prompt('シフトを選択してください:\n1: 日勤\n2: 遅番\n3: 夜勤');
     
@@ -299,11 +316,6 @@ function handleDrop(e) {
     if (!shiftData[dateStr][shift]) {
         shiftData[dateStr][shift] = [];
     }
-    
-    // 既存のシフトをチェック
-    Object.keys(shiftData[dateStr]).forEach(s => {
-        shiftData[dateStr][s] = shiftData[dateStr][s].filter(id => id !== staffId);
-    });
     
     shiftData[dateStr][shift].push(staffId);
     
@@ -367,7 +379,7 @@ function showStaffManagement() {
         </div>
     `;
     
-    staffData.forEach((staff, index) => {
+    staffData.forEach((staff) => {
         html += `
             <div class="staff-edit-item" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
                 <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; align-items: center;">
@@ -404,6 +416,8 @@ function showStaffManagement() {
     
     html += '</div>';
     managementEl.innerHTML = html;
+    managementEl.style.maxHeight = '70vh';
+    managementEl.style.overflowY = 'auto';
     staffModal.style.display = 'block';
 }
 
@@ -584,12 +598,23 @@ function getAvailableStaff(dateStr, staffConstraints) {
 }
 
 // シフトにスタッフを割り当て
-function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffConstraints, dayOfWeek) {
+function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffConstraints) {
     const requirements = SHIFT_REQUIREMENTS[shiftType];
     const assigned = [];
+    const assignedToday = new Set(); // その日に既に割り当てられたスタッフ
+    
+    // その日の既存のシフトから既に割り当てられたスタッフを収集
+    if (shiftData[dateStr]) {
+        Object.values(shiftData[dateStr]).forEach(staffIds => {
+            staffIds.forEach(id => assignedToday.add(id));
+        });
+    }
+    
+    // その日にまだ割り当てられていないスタッフのみをフィルタ
+    const availableForShift = availableStaff.filter(staff => !assignedToday.has(staff.id));
     
     // ランダム性を加える
-    const shuffled = [...availableStaff].sort(() => Math.random() - 0.5);
+    const shuffled = [...availableForShift].sort(() => Math.random() - 0.5);
     
     // 必須スキルを持つスタッフを優先
     const withRequiredSkills = shuffled.filter(staff => 
@@ -605,6 +630,7 @@ function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffCon
         
         if (canAssignToShift(staff, shiftType, dateStr, staffConstraints)) {
             assigned.push(staff.id);
+            assignedToday.add(staff.id); // 今日の割り当て済みに追加
         }
     }
     
@@ -614,6 +640,7 @@ function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffCon
         
         if (canAssignToShift(staff, shiftType, dateStr, staffConstraints)) {
             assigned.push(staff.id);
+            assignedToday.add(staff.id); // 今日の割り当て済みに追加
         }
     }
     
@@ -688,6 +715,129 @@ function updateStaffConstraints(dateStr, dayShifts, staffConstraints) {
             staffConstraints[staff.id].restDays++;
         }
     });
+}
+
+// ガントチャート表示関数
+function showGanttChart() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    // モーダルコンテンツを作成
+    const ganttModal = document.createElement('div');
+    ganttModal.className = 'modal';
+    ganttModal.id = 'ganttModal';
+    ganttModal.style.display = 'block';
+    
+    let html = `
+        <div class="modal-content" style="max-width: 95%; width: 1200px;">
+            <span class="close" onclick="document.getElementById('ganttModal').remove()">&times;</span>
+            <h2>${year}年${month + 1}月 シフトガントチャート</h2>
+            <div class="gantt-container" style="overflow-x: auto; margin-top: 20px;">
+                <table class="gantt-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="position: sticky; left: 0; background: white; border: 1px solid #ddd; padding: 8px; min-width: 150px;">スタッフ/日付</th>
+    `;
+    
+    // 日付ヘッダー
+    for (let day = 1; day <= lastDay; day++) {
+        const date = new Date(year, month, day);
+        const dayOfWeek = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+        html += `<th style="border: 1px solid #ddd; padding: 4px; min-width: 80px; text-align: center; ${isWeekend ? 'background: #f0f0f0;' : ''}">${day}<br><small>${dayOfWeek}</small></th>`;
+    }
+    html += '</tr></thead><tbody>';
+    
+    // 各スタッフの行
+    staffData.forEach(staff => {
+        html += `<tr><td style="position: sticky; left: 0; background: white; border: 1px solid #ddd; padding: 8px; font-weight: bold;">${staff.name}</td>`;
+        
+        for (let day = 1; day <= lastDay; day++) {
+            const dateStr = formatDate(new Date(year, month, day));
+            let cellContent = '';
+            let cellStyle = 'border: 1px solid #ddd; padding: 4px; text-align: center;';
+            
+            // 希望休みチェック
+            if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) {
+                cellContent = '希望休';
+                cellStyle += ' background: #f8d7da; color: #721c24;';
+            } else if (shiftData[dateStr]) {
+                // シフトチェック
+                Object.entries(shiftData[dateStr]).forEach(([shiftType, staffIds]) => {
+                    if (staffIds.includes(staff.id)) {
+                        const shift = SHIFT_TYPES[shiftType.toUpperCase()];
+                        cellContent = `<div style="font-size: 11px; font-weight: bold;">${shift.name}</div><div style="font-size: 10px;">${shift.time}</div>`;
+                        
+                        // シフトごとの色分け
+                        switch(shiftType) {
+                            case 'day':
+                                cellStyle += ' background: #fff3cd; color: #856404;';
+                                break;
+                            case 'late':
+                                cellStyle += ' background: #cce5ff; color: #004085;';
+                                break;
+                            case 'night':
+                                cellStyle += ' background: #d1ecf1; color: #0c5460;';
+                                break;
+                        }
+                    }
+                });
+            }
+            
+            html += `<td style="${cellStyle}">${cellContent}</td>`;
+        }
+        html += '</tr>';
+    });
+    
+    html += `
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 20px; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #fff3cd; border: 1px solid #ddd;"></div>
+                    <span>日勤 (9:00-17:30)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #cce5ff; border: 1px solid #ddd;"></div>
+                    <span>遅番 (16:00-24:00)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #d1ecf1; border: 1px solid #ddd;"></div>
+                    <span>夜勤 (23:00-9:00)</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <div style="width: 20px; height: 20px; background: #f8d7da; border: 1px solid #ddd;"></div>
+                    <span>希望休</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    ganttModal.innerHTML = html;
+    document.body.appendChild(ganttModal);
+    
+    // モーダル外クリックで閉じる
+    ganttModal.addEventListener('click', (e) => {
+        if (e.target === ganttModal) {
+            ganttModal.remove();
+        }
+    });
+}
+
+// ガントチャートボタンを追加
+function addGanttChartButton() {
+    const calendarHeader = document.querySelector('.calendar-header');
+    const ganttBtn = document.createElement('button');
+    ganttBtn.className = 'btn';
+    ganttBtn.textContent = 'ガントチャート表示';
+    ganttBtn.style.marginLeft = '10px';
+    ganttBtn.addEventListener('click', showGanttChart);
+    
+    // 既存のボタンの後に追加
+    const existingButtons = calendarHeader.querySelector('div:last-child');
+    existingButtons.appendChild(ganttBtn);
 }
 
 // 初期化実行
