@@ -8,16 +8,37 @@ const SHIFT_TYPES = {
 
 // スタッフデータ（仮データ）
 let staffData = [
-    { id: 1, name: '山田太郎', skills: ['リーダー', '新人指導'], maxNightShifts: 8 },
-    { id: 2, name: '佐藤花子', skills: ['ICU経験', 'リーダー'], maxNightShifts: 8 },
-    { id: 3, name: '鈴木一郎', skills: ['救急対応'], maxNightShifts: 10 },
-    { id: 4, name: '田中美咲', skills: ['新人'], maxNightShifts: 4 },
-    { id: 5, name: '高橋健太', skills: ['ICU経験'], maxNightShifts: 8 },
-    { id: 6, name: '伊藤由美', skills: ['リーダー', '救急対応'], maxNightShifts: 8 },
-    { id: 7, name: '渡辺直子', skills: [], maxNightShifts: 8 },
-    { id: 8, name: '小林正人', skills: ['新人指導'], maxNightShifts: 8 },
-    { id: 9, name: '加藤愛', skills: ['新人'], maxNightShifts: 4 },
-    { id: 10, name: '山口隆', skills: ['ICU経験', '救急対応'], maxNightShifts: 10 }
+    { id: 1, name: '山田太郎', skills: ['リーダー', '新人指導'], maxNightShifts: 8, minRestDays: 8 },
+    { id: 2, name: '佐藤花子', skills: ['ICU経験', 'リーダー'], maxNightShifts: 8, minRestDays: 8 },
+    { id: 3, name: '鈴木一郎', skills: ['救急対応'], maxNightShifts: 10, minRestDays: 8 },
+    { id: 4, name: '田中美咲', skills: ['新人'], maxNightShifts: 4, minRestDays: 10 },
+    { id: 5, name: '高橋健太', skills: ['ICU経験'], maxNightShifts: 8, minRestDays: 8 },
+    { id: 6, name: '伊藤由美', skills: ['リーダー', '救急対応'], maxNightShifts: 8, minRestDays: 8 },
+    { id: 7, name: '渡辺直子', skills: [], maxNightShifts: 8, minRestDays: 8 },
+    { id: 8, name: '小林正人', skills: ['新人指導'], maxNightShifts: 8, minRestDays: 8 },
+    { id: 9, name: '加藤愛', skills: ['新人'], maxNightShifts: 4, minRestDays: 10 },
+    { id: 10, name: '山口隆', skills: ['ICU経験', '救急対応'], maxNightShifts: 10, minRestDays: 8 }
+];
+
+// シフト必要人数の設定
+const SHIFT_REQUIREMENTS = {
+    day: { min: 4, max: 5, requiredSkills: ['リーダー'] },
+    late: { min: 3, max: 4, requiredSkills: [] },
+    night: { min: 2, max: 3, requiredSkills: ['リーダー'] }
+};
+
+// 利用可能なスキルのマスタ
+const SKILL_MASTER = [
+    'リーダー',
+    '新人指導',
+    'ICU経験',
+    '救急対応',
+    '新人',
+    '認定看護師',
+    '主任',
+    '感染管理',
+    'がん看護',
+    '精神科対応'
 ];
 
 // シフトデータ
@@ -313,7 +334,9 @@ function setupEventListeners() {
     
     // 自動割り当てボタン
     document.getElementById('autoAssignBtn').addEventListener('click', () => {
-        alert('自動割り当て機能は開発中です');
+        if (confirm('現在のシフトをクリアして自動作成しますか？')) {
+            autoGenerateShifts();
+        }
     });
     
     // モーダルの閉じるボタン
@@ -337,12 +360,44 @@ function showStaffManagement() {
     const managementEl = document.getElementById('staffManagement');
     let html = '<div>';
     
-    staffData.forEach(staff => {
+    // 新規スタッフ追加ボタン
+    html += `
+        <div style="margin-bottom: 20px;">
+            <button class="btn" onclick="addNewStaff()">新規スタッフ追加</button>
+        </div>
+    `;
+    
+    staffData.forEach((staff, index) => {
         html += `
-            <div class="staff-edit-item">
-                <div>${staff.name}</div>
-                <div>スキル: ${staff.skills.join(', ') || 'なし'}</div>
-                <div>夜勤上限: ${staff.maxNightShifts}回</div>
+            <div class="staff-edit-item" style="border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+                <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 10px; align-items: center;">
+                    <div>
+                        <input type="text" id="staff-name-${staff.id}" value="${staff.name}" style="width: 100%;">
+                    </div>
+                    <div>
+                        <label>スキル:</label>
+                        <div id="skills-${staff.id}" style="margin: 5px 0;">
+                            ${staff.skills.map(skill => 
+                                `<span class="skill-tag" style="display: inline-block; margin: 2px; padding: 4px 8px; background: #e9ecef; border-radius: 3px;">
+                                    ${skill} 
+                                    <span onclick="removeSkill(${staff.id}, '${skill}')" style="cursor: pointer; color: red;">×</span>
+                                </span>`
+                            ).join('')}
+                        </div>
+                        <select id="skill-select-${staff.id}" onchange="addSkill(${staff.id})" style="margin-top: 5px;">
+                            <option value="">スキルを追加...</option>
+                            ${SKILL_MASTER.map(skill => 
+                                `<option value="${skill}" ${staff.skills.includes(skill) ? 'disabled' : ''}>${skill}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label>夜勤上限: 
+                            <input type="number" id="night-limit-${staff.id}" value="${staff.maxNightShifts}" min="0" max="20" style="width: 60px;">
+                        </label>
+                        <button class="btn" onclick="saveStaffChanges(${staff.id})" style="margin-top: 5px;">保存</button>
+                    </div>
+                </div>
             </div>
         `;
     });
@@ -350,6 +405,66 @@ function showStaffManagement() {
     html += '</div>';
     managementEl.innerHTML = html;
     staffModal.style.display = 'block';
+}
+
+// スキル追加
+function addSkill(staffId) {
+    const selectEl = document.getElementById(`skill-select-${staffId}`);
+    const skill = selectEl.value;
+    
+    if (!skill) return;
+    
+    const staff = staffData.find(s => s.id === staffId);
+    if (staff && !staff.skills.includes(skill)) {
+        staff.skills.push(skill);
+        showStaffManagement(); // 画面を再描画
+        renderStaffList(); // スタッフリストも更新
+    }
+}
+
+// スキル削除
+function removeSkill(staffId, skill) {
+    const staff = staffData.find(s => s.id === staffId);
+    if (staff) {
+        staff.skills = staff.skills.filter(s => s !== skill);
+        showStaffManagement(); // 画面を再描画
+        renderStaffList(); // スタッフリストも更新
+    }
+}
+
+// スタッフ情報保存
+function saveStaffChanges(staffId) {
+    const staff = staffData.find(s => s.id === staffId);
+    if (!staff) return;
+    
+    const nameEl = document.getElementById(`staff-name-${staffId}`);
+    const nightLimitEl = document.getElementById(`night-limit-${staffId}`);
+    
+    staff.name = nameEl.value;
+    staff.maxNightShifts = parseInt(nightLimitEl.value);
+    
+    renderStaffList(); // スタッフリストを更新
+    renderCalendar(); // カレンダーも更新（名前が変わった場合のため）
+    alert('スタッフ情報を更新しました');
+}
+
+// 新規スタッフ追加
+function addNewStaff() {
+    const name = prompt('新規スタッフの名前を入力してください:');
+    if (!name) return;
+    
+    const newId = Math.max(...staffData.map(s => s.id)) + 1;
+    const newStaff = {
+        id: newId,
+        name: name,
+        skills: [],
+        maxNightShifts: 8,
+        minRestDays: 8
+    };
+    
+    staffData.push(newStaff);
+    showStaffManagement(); // 画面を再描画
+    renderStaffList(); // スタッフリストも更新
 }
 
 // 希望休み登録フォーム表示
@@ -391,6 +506,188 @@ function formatDate(date) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+}
+
+// シフト自動生成機能
+function autoGenerateShifts() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    // 既存のシフトをクリア（希望休みは保持）
+    shiftData = {};
+    
+    // スタッフごとの制約管理
+    const staffConstraints = {};
+    staffData.forEach(staff => {
+        staffConstraints[staff.id] = {
+            nightCount: 0,
+            restDays: 0,
+            lastNight: null,
+            consecutiveWork: 0
+        };
+    });
+    
+    // 各日付でシフトを生成
+    for (let day = 1; day <= lastDay; day++) {
+        const dateStr = formatDate(new Date(year, month, day));
+        const dayOfWeek = new Date(year, month, day).getDay();
+        
+        // この日の利用可能なスタッフを取得
+        const availableStaff = getAvailableStaff(dateStr, staffConstraints);
+        
+        // シフトタイプごとに割り当て
+        shiftData[dateStr] = {};
+        
+        // 各シフトタイプに対してスタッフを割り当て
+        ['day', 'late', 'night'].forEach(shiftType => {
+            const assigned = assignShiftWithConstraints(
+                shiftType,
+                dateStr,
+                availableStaff,
+                staffConstraints,
+                dayOfWeek
+            );
+            if (assigned.length > 0) {
+                shiftData[dateStr][shiftType] = assigned;
+            }
+        });
+        
+        // 制約情報を更新
+        updateStaffConstraints(dateStr, shiftData[dateStr], staffConstraints);
+    }
+    
+    // カレンダーを再描画
+    renderCalendar();
+    alert('シフトを自動生成しました');
+}
+
+// 利用可能なスタッフを取得
+function getAvailableStaff(dateStr, staffConstraints) {
+    const available = [];
+    
+    staffData.forEach(staff => {
+        // 希望休みチェック
+        if (requestedDaysOff[dateStr] && requestedDaysOff[dateStr].includes(staff.id)) {
+            return;
+        }
+        
+        // 5連勤チェック
+        if (staffConstraints[staff.id].consecutiveWork >= 5) {
+            return;
+        }
+        
+        available.push(staff);
+    });
+    
+    return available;
+}
+
+// シフトにスタッフを割り当て
+function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffConstraints, dayOfWeek) {
+    const requirements = SHIFT_REQUIREMENTS[shiftType];
+    const assigned = [];
+    
+    // ランダム性を加える
+    const shuffled = [...availableStaff].sort(() => Math.random() - 0.5);
+    
+    // 必須スキルを持つスタッフを優先
+    const withRequiredSkills = shuffled.filter(staff => 
+        requirements.requiredSkills.some(skill => staff.skills.includes(skill))
+    );
+    const withoutRequiredSkills = shuffled.filter(staff => 
+        !requirements.requiredSkills.some(skill => staff.skills.includes(skill))
+    );
+    
+    // 必須スキルを持つスタッフから割り当て
+    for (const staff of withRequiredSkills) {
+        if (assigned.length >= requirements.max) break;
+        
+        if (canAssignToShift(staff, shiftType, dateStr, staffConstraints)) {
+            assigned.push(staff.id);
+        }
+    }
+    
+    // 残りのスタッフから割り当て
+    for (const staff of withoutRequiredSkills) {
+        if (assigned.length >= requirements.max) break;
+        
+        if (canAssignToShift(staff, shiftType, dateStr, staffConstraints)) {
+            assigned.push(staff.id);
+        }
+    }
+    
+    // 最小人数を満たしているかチェック
+    if (assigned.length < requirements.min) {
+        // 必要に応じて制約を緩めて再割り当て
+        for (const staff of shuffled) {
+            if (assigned.length >= requirements.min) break;
+            if (!assigned.includes(staff.id)) {
+                assigned.push(staff.id);
+            }
+        }
+    }
+    
+    return assigned;
+}
+
+// スタッフがシフトに割り当て可能かチェック
+function canAssignToShift(staff, shiftType, dateStr, staffConstraints) {
+    const constraint = staffConstraints[staff.id];
+    
+    // 夜勤の場合
+    if (shiftType === 'night') {
+        // 夜勤上限チェック
+        if (constraint.nightCount >= staff.maxNightShifts) {
+            return false;
+        }
+        
+        // 前日が夜勤の場合は避ける
+        if (constraint.lastNight) {
+            const lastNightDate = new Date(constraint.lastNight);
+            const currentDate = new Date(dateStr);
+            const dayDiff = (currentDate - lastNightDate) / (1000 * 60 * 60 * 24);
+            if (dayDiff <= 1) {
+                return false;
+            }
+        }
+    }
+    
+    // 新人は一人にしない（他のスタッフがいることを前提）
+    if (staff.skills.includes('新人') && shiftType === 'night') {
+        return Math.random() > 0.7; // 新人の夜勤は少なめに
+    }
+    
+    return true;
+}
+
+// スタッフの制約情報を更新
+function updateStaffConstraints(dateStr, dayShifts, staffConstraints) {
+    // 全スタッフの連続勤務と休日をリセット
+    staffData.forEach(staff => {
+        let worked = false;
+        
+        // この日に勤務しているかチェック
+        Object.entries(dayShifts).forEach(([shiftType, staffIds]) => {
+            if (staffIds.includes(staff.id)) {
+                worked = true;
+                
+                // 夜勤の場合
+                if (shiftType === 'night') {
+                    staffConstraints[staff.id].nightCount++;
+                    staffConstraints[staff.id].lastNight = dateStr;
+                }
+            }
+        });
+        
+        if (worked) {
+            staffConstraints[staff.id].consecutiveWork++;
+            staffConstraints[staff.id].restDays = 0;
+        } else {
+            staffConstraints[staff.id].consecutiveWork = 0;
+            staffConstraints[staff.id].restDays++;
+        }
+    });
 }
 
 // 初期化実行

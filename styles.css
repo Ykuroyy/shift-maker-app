@@ -224,6 +224,26 @@ input, select {
     border-radius: 4px;
 }
 
+/* スキルタグ */
+.skill-tag {
+    display: inline-block;
+    margin: 2px;
+    padding: 4px 8px;
+    background: #007bff;
+    color: white;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.skill-tag span {
+    margin-left: 5px;
+    cursor: pointer;
+}
+
+.skill-tag span:hover {
+    color: #ff6b6b;
+}
+
 /* ドラッグオーバー時のスタイル */
 .calendar-day.drag-over {
     background: #e3f2fd;
