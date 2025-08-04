@@ -24,7 +24,7 @@ let staffData = [
 const SHIFT_REQUIREMENTS = {
     day: { min: 4, max: 5, requiredSkills: ['リーダー'] },
     late: { min: 3, max: 4, requiredSkills: [] },
-    night: { min: 2, max: 3, requiredSkills: ['リーダー'] }
+    night: { min: 3, max: 3, requiredSkills: ['リーダー'] }
 };
 
 // 利用可能なスキルのマスタ
@@ -416,7 +416,12 @@ function showStaffManagement() {
                         <label>夜勤上限: 
                             <input type="number" id="night-limit-${staff.id}" value="${staff.maxNightShifts}" min="0" max="20" style="width: 60px;">
                         </label>
-                        <button class="btn" onclick="saveStaffChanges(${staff.id})" style="margin-top: 5px;">保存</button>
+                        <br>
+                        <label style="margin-top: 5px;">最低休日数: 
+                            <input type="number" id="rest-days-${staff.id}" value="${staff.minRestDays}" min="4" max="20" style="width: 60px;">
+                        </label>
+                        <br>
+                        <button class="btn" onclick="saveStaffChanges(${staff.id})" style="margin-top: 10px;">保存</button>
                     </div>
                 </div>
             </div>
@@ -462,9 +467,11 @@ function saveStaffChanges(staffId) {
     
     const nameEl = document.getElementById(`staff-name-${staffId}`);
     const nightLimitEl = document.getElementById(`night-limit-${staffId}`);
+    const restDaysEl = document.getElementById(`rest-days-${staffId}`);
     
     staff.name = nameEl.value;
     staff.maxNightShifts = parseInt(nightLimitEl.value);
+    staff.minRestDays = parseInt(restDaysEl.value);
     
     renderStaffList(); // スタッフリストを更新
     renderCalendar(); // カレンダーも更新（名前が変わった場合のため）
@@ -656,10 +663,20 @@ function assignShiftWithConstraints(shiftType, dateStr, availableStaff, staffCon
     // 最小人数を満たしているかチェック
     if (assigned.length < requirements.min) {
         // 必要に応じて制約を緩めて再割り当て
-        for (const staff of shuffled) {
+        const availableForMin = availableForShift.filter(staff => !assigned.includes(staff.id));
+        for (const staff of availableForMin) {
             if (assigned.length >= requirements.min) break;
-            if (!assigned.includes(staff.id)) {
+            // 夜勤の場合は最低限の制約のみチェック
+            if (shiftType === 'night') {
+                const constraint = staffConstraints[staff.id];
+                // 夜勤上限のみチェック（他の制約は緩める）
+                if (constraint.nightCount < staff.maxNightShifts) {
+                    assigned.push(staff.id);
+                    assignedToday.add(staff.id);
+                }
+            } else {
                 assigned.push(staff.id);
+                assignedToday.add(staff.id);
             }
         }
     }
@@ -1011,7 +1028,7 @@ function showMonthlyStats() {
     html += `
                 </tbody>
             </table>
-            <p style="margin-top: 15px; font-size: 14px; color: #666;">※ 赤色背景: 最低休日数(${staffData[0].minRestDays}日)未満のスタッフ</p>
+            <p style="margin-top: 15px; font-size: 14px; color: #666;">※ 赤色背景: 各スタッフの設定した最低休日数未満のスタッフ</p>
             <div style="text-align: center; margin-top: 20px;">
                 <button class="btn" style="background: #28a745; margin-right: 10px;" onclick="downloadStatsCSV()">📄 統計をCSVダウンロード</button>
                 <button class="btn" style="background: #17a2b8;" onclick="downloadScheduleCSV()">📅 シフト表をCSVダウンロード</button>
