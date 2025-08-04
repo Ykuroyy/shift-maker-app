@@ -1,0 +1,12 @@
+{
+  "name": "shift-maker-app",
+  "version": "1.0.0",
+  "description": "看護師向け24時間シフト作成アプリ",
+  "main": "index.html",
+  "scripts": {
+    "start": "open index.html"
+  },
+  "keywords": ["shift", "schedule", "nurse", "hospital"],
+  "author": "",
+  "license": "ISC"
+}

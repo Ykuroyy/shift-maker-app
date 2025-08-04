@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シフト作成アプリ</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>シフト作成アプリ</h1>
+        
+        <div class="main-content">
+            <!-- 左側：スタッフ一覧 -->
+            <div class="staff-section">
+                <h2>スタッフ一覧</h2>
+                <div id="staffList" class="staff-list"></div>
+                <button id="staffManageBtn" class="btn">スタッフ管理</button>
+            </div>
+            
+            <!-- 中央：カレンダー -->
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <button id="prevMonth" class="btn">&lt;</button>
+                    <h2 id="currentMonth"></h2>
+                    <button id="nextMonth" class="btn">&gt;</button>
+                </div>
+                <div id="calendar" class="calendar"></div>
+            </div>
+            
+            <!-- 右側：シフト詳細 -->
+            <div class="shift-section">
+                <h2>シフト詳細</h2>
+                <div id="shiftDetail" class="shift-detail">
+                    <p>日付を選択してください</p>
+                </div>
+                <button id="autoAssignBtn" class="btn">自動割り当て</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- モーダル：スタッフ管理 -->
+    <div id="staffModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>スタッフ管理</h2>
+            <div id="staffManagement"></div>
+        </div>
+    </div>
+    
+    <!-- モーダル：希望休み登録 -->
+    <div id="requestModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>希望休み登録</h2>
+            <div id="requestForm">
+                <label>スタッフ：<select id="requestStaff"></select></label>
+                <label>日付：<input type="date" id="requestDate"></label>
+                <button id="submitRequest" class="btn">登録</button>
+            </div>
+            <div id="requestList"></div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
